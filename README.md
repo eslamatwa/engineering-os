@@ -4,6 +4,18 @@ A Claude Code plugin that catches mistakes before they land. It classifies each 
 
 **Status:** build phases 1–6 (skeleton, gate, approvals, evidence, orchestration, visibility) done; phase 7 (hardening and publish) to go. Platform spike rounds 1–3 done (Desktop status line and web still to check). See `docs/build-plan.md` and `docs/phase-results.md`.
 
+## Install
+
+Needs Claude Code 2.1.321 or later, Node 18 or later (tested on 20 and 24), and git.
+
+```bash
+claude plugin install engos --marketplace eslamatwa/engineering-os
+```
+
+Or inside a Claude Code session: `/plugin marketplace add eslamatwa/engineering-os`, then `/plugin install engos@engineering-os`.
+
+Then, in each project, run `/engos:init`. It asks which models your plan includes and which commands prove the code works, and offers deny rules and a status line. After that, `/engos:status` shows what is happening and `/engos:view` opens the live view.
+
 ## What it protects against
 
 Engineering OS prevents common mistakes and detects indirect changes inside the repo after they happen. It is not a sandbox and does not stop a model that is deliberately trying to get around it.
@@ -21,7 +33,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D46). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D47). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |

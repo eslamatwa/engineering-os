@@ -1,0 +1,18 @@
+{
+  "name": "engineering-os",
+  "owner": {
+    "name": "Engineering OS contributors"
+  },
+  "metadata": {
+    "description": "Engineering OS for Claude Code: risk classification, gates, recorded human approvals, evidence-based task closing and a live view of the agents."
+  },
+  "plugins": [
+    {
+      "name": "engos",
+      "source": "./plugin",
+      "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence, and shows what the agents are doing.",
+      "category": "development",
+      "keywords": ["governance", "approvals", "hooks", "safety", "multi-agent"]
+    }
+  ]
+}

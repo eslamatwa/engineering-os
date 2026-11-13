@@ -1,7 +1,7 @@
 {
   "name": "engos",
   "version": "0.1.0-phase6",
-  "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence.",
+  "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence, and shows what the agents are doing.",
   "license": "MIT",
   "keywords": [
     "governance",
@@ -9,5 +9,6 @@
     "hooks",
     "safety",
     "multi-agent"
-  ]
+  ],
+  "icon": ".claude-plugin/icon.png"
 }
