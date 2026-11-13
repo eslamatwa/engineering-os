@@ -32,7 +32,7 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** B2–B11 (including B4b).
 
-## Phase 4 · Evidence and close
+## Phase 4 · Evidence and close — done 2026-11-13 (see docs/phase-results.md)
 
 - `engos check <name>` runs the exact configured command and records the exit code (D36).
 - Evidence kinds; `engos task close` rules; criteria amendments.

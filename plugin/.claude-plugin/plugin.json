@@ -1,6 +1,6 @@
 {
   "name": "engos",
-  "version": "0.1.0-phase3",
+  "version": "0.1.0-phase4",
   "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence.",
   "license": "MIT",
   "keywords": [

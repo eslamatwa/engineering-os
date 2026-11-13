@@ -187,3 +187,53 @@ Ledger order: refused (protected) → refused (requirements) → profile → pla
 Finding: when commit and push run in one command, the outgoing commits don't exist yet when the request is written. The record now also stores the commit actually pushed, after the push.
 
 Also seen: the session-start hook couldn't read the Claude Code version in a session started from the terminal, while `engos doctor` run from Claude's Bash could. The warning is now shown at most once a week; finding a reliable version source is left for phase 7.
+
+## Phase 4 · Evidence and close (2026-11-13)
+
+**Status:** done. The validator's review record (E-review-record) for high_risk tasks arrives with the validator in phase 5; until then it is listed at close as "not enforced yet".
+
+### What was built
+
+| File | What |
+| --- | --- |
+| `plugin/scripts/engos-evidence.js` | Runs the exact configured check, records exit code, duration, output hash and line count (never the output itself); required checks (`required_checks` in config, else all configured); close rules per class |
+| `plugin/scripts/engos-cli.js` | `engos check <name>`; `task close` with evidence, diff summary and `--residual-risk`; `plan set --acceptance`; `criteria amend`; status shows check results and whether they ran before the latest change |
+| `plugin/scripts/engos-hook.js` | Records the time of the last change; marks files changed before a trivial task was upgraded (D10); `/engos:decide TASK close` confirms a high_risk close; `approve_amendment` / `reject_amendment`; logs the full command that opened a task |
+| `config/rules.yaml` | `jq`, `sed` (without `-i`), `nl`, `column` and checksum tools count as reads |
+| `tests/unit/phase4.test.js` | 9 tests |
+
+### Close rules as built
+
+| Class | Needs |
+| --- | --- |
+| question | nothing |
+| trivial_edit | diff shown; required checks passed after the last change, or "no checks configured" noted |
+| standard | as trivial, but checks are mandatory; every changed file inside the plan scope (files changed before the upgrade count as in scope); residual risk written (`none` allowed) |
+| high_risk | as standard, plus the user's `/engos:decide TASK close` from the task's session; validator review in phase 5 |
+
+Any class: a task waiting for a decision or still missing its profile and plan can't close.
+
+### Exit scenarios (unit)
+
+| Scenario | Result |
+| --- | --- |
+| A1 close path: diff shown, check recorded, task closed with evidence in the ledger | Pass |
+| C6 close refused before the check; refused again when a change came after the check; closes after a fresh check | Pass |
+| C7 running the check command by hand records no evidence | Pass |
+| Failing check recorded with the real exit code (3); close refused; output not stored | Pass |
+| Unknown check name lists the configured ones; trivial task with no checks closes and says so | Pass |
+| Standard: residual risk required; pre-upgrade files count as in scope | Pass |
+| High_risk: close needs the user's confirmation; another session's confirmation refused | Pass |
+| Criteria amendments: recorded in standard; user decides in high_risk; rejected leaves criteria unchanged | Pass |
+| A task waiting for a decision can't close | Pass |
+
+All unit tests: 52 of 52.
+
+### End-to-end in real Claude Code (2.1.321, Haiku, headless)
+
+| # | Request | Result |
+| --- | --- | --- |
+| P4-E1 | Rename, then "run its check and close it" | Claude edited, ran `engos check test` (passed), closed TASK-001 with "Evidence: E-diff-shown; E-checks (test)". Ledger: opened → evidence(0) → closed. |
+| P4-E2 | A rename that breaks the test, then close | Check recorded FAILED (exit 1); close refused with the exact reason; Claude did not work around it and asked the user to choose between fixing the test and accepting the failure. |
+
+Finding: in P4-E2 a task opened on a command the truncated summary showed as read-only. The full command is now logged when a command opens a task, and more read-only tools are recognised.

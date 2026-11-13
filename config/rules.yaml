@@ -172,7 +172,7 @@ bash_classes:
   vcs_local:
     prefixes: ["git add", "git commit", "git switch", "git checkout", "git branch", "git stash", "git restore", "git merge", "git rebase", "git tag", "git mv", "git rm", "git init"]
   read:
-    commands: [cd, pushd, popd, export, ls, dir, cat, type, head, tail, less, more, rg, grep, egrep, fgrep, find, fd, wc, pwd, echo, printf, which, where, tree, stat, file, du, df, date, whoami, env, printenv, sort, uniq, cut, diff, cmp, basename, dirname, realpath, readlink, true, false, test, Get-ChildItem, Get-Content, Get-Location, Select-String]
+    commands: [cd, pushd, popd, export, jq, sed, nl, column, md5sum, sha1sum, sha256sum, ls, dir, cat, type, head, tail, less, more, rg, grep, egrep, fgrep, find, fd, wc, pwd, echo, printf, which, where, tree, stat, file, du, df, date, whoami, env, printenv, sort, uniq, cut, diff, cmp, basename, dirname, realpath, readlink, true, false, test, Get-ChildItem, Get-Content, Get-Location, Select-String]
     prefixes: ["git status", "git log", "git diff", "git show", "git rev-parse", "git ls-files", "git remote -v", "git blame", "git branch --list", "git config --get", "node --version", "node -v", "npm --version", "npm ls", "npm view", "python --version"]
     not_read_if: [output_redirect, "find -delete", "find -exec", "sed -i"]   # these turn a read into unknown
   unknown: everything else

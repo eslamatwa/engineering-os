@@ -260,6 +260,9 @@ function cmdTask(args) {
         console.log('  files: ' + (o.files_count || 0) + ' (+' + (o.lines_added || 0) + ' -' + (o.lines_deleted || 0) + ' lines)' + (o.files_touched && o.files_touched.length ? ': ' + o.files_touched.join(', ') : ''));
         if (t.planned && t.planned.scope) console.log('  write scope: ' + (t.planned.scope.write || []).join(', '));
         if (t.needs_human_reason) console.log('  needs human: ' + t.needs_human_reason + ' (user types /engos:decide ' + t.task_id + ' accept|stop)');
+        const runs = require(path.join(__dirname, 'engos-evidence.js')).latestRuns(t);
+        for (const n of Object.keys(runs)) console.log('  check ' + n + ': ' + (runs[n].passed ? 'passed' : 'failed (exit ' + runs[n].exit + ')') + ' at ' + runs[n].at.slice(11, 19) + (t.last_change_at && Date.parse(runs[n].at) < Date.parse(t.last_change_at) ? ' (before the latest change)' : ''));
+        if (t.planned && (t.planned.acceptance || []).length) console.log('  acceptance: ' + t.planned.acceptance.map((a) => a.id + ' ' + a.statement).join('; '));
         const files = Object.keys(t.approved_files || {});
         if (files.length) console.log('  protected files approved: ' + files.join(', '));
         const missing = R.missingRequirements(t);
@@ -274,16 +277,38 @@ function cmdTask(args) {
     const profile = core.loadProfile(root, id);
     if (!profile) fail('no task ' + id);
     if (profile.status === 'closed') fail(id + ' is already closed');
-    if (profile.status === 'needs_human') fail(id + ' is waiting for a human decision (' + (profile.needs_human_reason || '') + "). It can't be closed until that is resolved.");
-    // Evidence requirements arrive in build phase 4.
+    const E = require(path.join(__dirname, 'engos-evidence.js'));
+    const cfg = core.loadProjectConfig(root);
+    if (args['residual-risk'] && args['residual-risk'] !== true) profile.residual_risk = String(args['residual-risk']);
+    const ev = E.evaluateClose(profile, cfg.ok ? cfg.config : {}, {});
+    const base = core.loadBaseline(root, id);
+    const stat = E.diffStat(root, base.git_head);
+    console.log(id + ' (' + ev.cls + '): ' + ((profile.request && profile.request.summary) || ''));
+    const touched = (profile.observed && profile.observed.files_touched) || [];
+    if (touched.length) console.log('Changed files: ' + touched.join(', '));
+    if (stat) console.log(stat);
+    if (ev.met.length) console.log('Evidence: ' + ev.met.join('; '));
+    for (const n of ev.notYet) console.log('Not enforced yet: ' + n);
+    if (!ev.ok) {
+      if (ev.cls === 'high_risk' && !profile.close_acknowledged && ev.missing.length === 1 && ev.missing[0].startsWith('the user')) {
+        profile.awaiting_close_ack = true;
+        profile.close_requested_at = new Date().toISOString();
+      }
+      core.saveProfile(root, profile);
+      core.ledger(root, { type: 'task.close_refused', actor: { kind: 'cli' }, task_id: id, missing: ev.missing });
+      console.log('Not closed. Still needed:');
+      for (const m of ev.missing) console.log('  - ' + m);
+      process.exit(1);
+    }
     profile.status = 'closed';
     profile.closed_at = new Date().toISOString();
-    profile.close_note = 'closed without evidence checks: evidence rules arrive in build phase 4';
+    profile.close_evidence = ev.met;
+    delete profile.close_note;
     core.saveProfile(root, profile);
-    core.ledger(root, { type: 'task.closed', actor: { kind: 'cli' }, task_id: id, evidence_checked: false });
+    core.ledger(root, { type: 'task.closed', actor: { kind: 'cli' }, task_id: id, evidence_checked: true, evidence: ev.met, residual_risk: profile.residual_risk || null });
     const sid = sessionId();
-    if (sid) { const s = core.loadSession(root, sid); if (s && s.active_task === id) { s.active_task = null; core.saveSession(root, sid, s); } }
-    console.log(id + ' closed.');
+    if (sid) { const s2 = core.loadSession(root, sid); if (s2 && s2.active_task === id) { s2.active_task = null; core.saveSession(root, sid, s2); } }
+    console.log(id + ' closed. Show the user the changed files and the evidence above.');
     return;
   }
   if (sub === 'rearm') {
@@ -345,11 +370,69 @@ function cmdPlan(args) {
   task.planned = {
     scope: { write, read: list(args['scope-read']) },
     steps: list(args.steps).map((s) => { const parts = s.split(':'); return { id: parts[0], kind: parts[1] || 'implement' }; }),
+    acceptance: criteria(args.acceptance),
     set_at: new Date().toISOString(),
   };
   core.ledger(root, { type: 'plan.set', actor: { kind: 'cli' }, task_id: task.task_id, scope_write: write });
   const r = core.ratchet(root, task, 'plan', protectedPaths(root));
   report(root, task, r);
+}
+
+function criteria(v) {
+  if (v === undefined || v === true) return [];
+  return String(v).split(';').map((x) => x.trim()).filter(Boolean).map((statement, i) => ({ id: 'AC-' + (i + 1), statement }));
+}
+
+function cmdCheck(args) {
+  const name = args._[1];
+  if (!name) fail('use: engos check <name>   (names come from checks: in .engos/config.yaml)');
+  const root = requireRoot();
+  const cfg = core.loadProjectConfig(root);
+  if (!cfg.ok) fail(cfg.error);
+  const E = require(path.join(__dirname, 'engos-evidence.js'));
+  const r = E.runCheck(root, cfg.config, String(name), { timeoutSec: Number(args.timeout) || 900 });
+  if (r.error) fail(r.error);
+  if (r.output) process.stdout.write(r.output.endsWith('\n') ? r.output : r.output + '\n');
+  const sid = sessionId();
+  let task = null;
+  if (args.task && args.task !== true) task = core.loadProfile(root, String(args.task));
+  else if (sid) task = core.activeTask(root, sid);
+  else { const open = core.listTasks(root).filter(core.isOpen); task = open[open.length - 1] || null; }
+  const rec = { name: r.name, command: r.command, exit: r.exit, passed: r.passed, timed_out: r.timed_out, duration_ms: r.duration_ms, output_sha256: r.output_sha256, output_lines: r.output_lines, at: r.at };
+  if (task) {
+    task.evidence = task.evidence || {};
+    task.evidence.checks = (task.evidence.checks || []).concat([rec]);
+    core.saveProfile(root, task);
+  }
+  core.ledger(root, Object.assign({ type: 'evidence.recorded', actor: { kind: 'cli' }, task_id: task ? task.task_id : null }, rec));
+  console.log('engos check ' + r.name + ': ' + (r.passed ? 'passed' : 'FAILED') + ' (exit ' + r.exit + (r.timed_out ? ', timed out' : '') + ', ' + Math.round(r.duration_ms / 1000) + 's)' + (task ? ', recorded on ' + task.task_id : ', no open task to record it on'));
+  process.exit(r.exit === 0 ? 0 : 1);
+}
+
+function cmdCriteria(args) {
+  if (args._[1] !== 'amend') fail('use: engos criteria amend --set "criterion; criterion" --reason "..."');
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  const next = criteria(args.set);
+  const reason = args.reason;
+  if (!next.length || !reason || reason === true) fail('criteria amend needs --set "a; b" and --reason "..."');
+  if (!task.planned || !task.planned.scope) fail(task.task_id + ' has no plan yet. Use engos plan set first.');
+  const before = task.planned.acceptance || [];
+  if (task.effective.class === 'high_risk') {
+    task.pending_amendment = { kind: 'criteria', before, after: next, reason: String(reason), at: new Date().toISOString() };
+    task.status = 'needs_human';
+    task.needs_human_reason = 'the lead wants to change the acceptance criteria: ' + String(reason);
+    task.needs_human_at = new Date().toISOString();
+    task.decision_options = ['approve_amendment', 'reject_amendment'];
+    core.saveProfile(root, task);
+    core.ledger(root, { type: 'criteria.amendment_requested', actor: { kind: 'cli' }, task_id: task.task_id, before, after: next, reason: String(reason) });
+    console.log(task.task_id + ' is high_risk, so the user decides. Show them the change and ask them to type /engos:decide ' + task.task_id + ' approve_amendment (or reject_amendment).');
+    return;
+  }
+  task.planned.acceptance = next;
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'criteria.amended', actor: { kind: 'cli' }, task_id: task.task_id, before, after: next, reason: String(reason) });
+  console.log(task.task_id + ': acceptance criteria updated and recorded.');
 }
 
 function cmdScope(args) {
@@ -386,12 +469,14 @@ function main() {
     case 'profile': return cmdProfile(args);
     case 'plan': return cmdPlan(args);
     case 'scope': return cmdScope(args);
+    case 'check': return cmdCheck(args);
+    case 'criteria': return cmdCriteria(args);
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--scope-read "..."] [--steps "S1:locate"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

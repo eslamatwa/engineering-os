@@ -206,6 +206,7 @@ function gateWrite(core, root, session, input, cfg) {
 
   const r = core.ratchet(root, prospective, 'write:' + rel, cfg.protected);
   if (r.raised) {
+    if (r.from === 'trivial_edit' && !task.pre_upgrade_files) task.pre_upgrade_files = (task.observed.files_touched || []).slice(); // D10
     task.effective = prospective.effective;
     task.history = prospective.history;
     task.status = r.missing.length ? 'upgrade_pending' : task.status;
@@ -283,7 +284,10 @@ function gateBash(core, root, session, input, cfg) {
     return;
   }
 
-  if (!task) core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + cmd.slice(0, 80) });
+  if (!task) {
+    const t = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + cmd.slice(0, 200) });
+    core.ledger(root, { type: 'task.opened_by_command', actor: { kind: 'hook' }, task_id: t.task_id, command: cmd.slice(0, 500), parts: res.parts.map((p) => p.cls) });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +347,11 @@ function postToolUse(core, input) {
   const observeLib = require('./engos-observe.js');
   const base = core.loadBaseline(root, task.task_id);
   const before = new Set(((task.observed && task.observed.protected_hits) || []).map((h) => h.path));
+  const prevObs = task.observed || {};
+  const sig = (o) => JSON.stringify([o.files_touched || [], o.lines_added || 0, o.lines_deleted || 0, o.files_created || 0, o.files_deleted || 0]);
   const obs = observeLib.observe(root, base, cfg.protected, { withSnapshot: isBash });
+  // Checks must run after the latest change to count (phase 4).
+  if (sig(prevObs) !== sig(obs) || !isBash) task.last_change_at = new Date().toISOString();
   task.observed = Object.assign(task.observed || {}, obs, { pkg_install: (task.observed && task.observed.pkg_install) || pkg });
 
   const messages = [];
@@ -364,6 +372,8 @@ function postToolUse(core, input) {
   }
 
   const r = core.ratchet(root, task, (isBash ? 'bash' : 'write') + ':observed', cfg.protected);
+  // D10: changes made while the task was trivial stay and count as part of the plan.
+  if (r.raised && r.from === 'trivial_edit' && !task.pre_upgrade_files) task.pre_upgrade_files = (task.observed.files_touched || []).slice();
   if (r.raised && task.status !== 'needs_human') {
     messages.push('Engineering OS: task ' + task.task_id + ' is now ' + r.to + ' (was ' + r.from + ').' + (r.missing.length ? ' ' + needsText(task, r.missing) : ''));
   }
@@ -420,6 +430,15 @@ function promptExpansion(core, input) {
 
   if (cmd.name === 'decide') {
     const option = m[2].toLowerCase();
+    if (option === 'close') { // high_risk close confirmation (D8)
+      if (!task.awaiting_close_ack) return tell(id + ' isn\'t waiting for a close confirmation. Claude must run `engos task close ' + id + '` first.');
+      if (resumedAfter(session, task.close_requested_at)) return tell('this session was resumed after the close was requested, so it can\'t be confirmed here (D35). Ask Claude to run `engos task close ' + id + '` again, then confirm.');
+      task.close_acknowledged = { by: 'human', at: new Date().toISOString() };
+      task.awaiting_close_ack = false;
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'close.acknowledged', actor: { kind: 'human' }, task_id: id, session_id: sessionId });
+      return tell(id + ': close confirmed. Claude can now run `engos task close ' + id + '`.');
+    }
     if (task.status !== 'needs_human') return tell(id + ' isn\'t waiting for a decision.');
     if (resumedAfter(session, task.needs_human_at)) {
       core.ledger(root, { type: 'typed_command.refused', actor: { kind: 'hook' }, command: 'decide', task_id: id, reason: 'resumed_after_request' });
@@ -428,6 +447,18 @@ function promptExpansion(core, input) {
     const options = task.decision_options || ['accept', 'stop'];
     if (!options.includes(option)) return tell('options for ' + id + ': ' + options.join(', ') + '.');
     task.decisions = (task.decisions || []).concat([{ at: new Date().toISOString(), option, reason: task.needs_human_reason, decided_by: 'human' }]);
+    if (option === 'approve_amendment' || option === 'reject_amendment') {
+      const am = task.pending_amendment;
+      if (option === 'approve_amendment' && am && am.kind === 'criteria') task.planned.acceptance = am.after;
+      core.ledger(root, { type: option === 'approve_amendment' ? 'criteria.amended' : 'criteria.amendment_rejected', actor: { kind: 'human' }, task_id: id, before: am ? am.before : null, after: am ? am.after : null, reason: am ? am.reason : null });
+      task.pending_amendment = null;
+      task.status = 'open';
+      task.needs_human_reason = null;
+      task.decision_options = null;
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'decision.recorded', actor: { kind: 'human' }, task_id: id, option, session_id: sessionId });
+      return tell(id + ': amendment ' + (option === 'approve_amendment' ? 'approved' : 'rejected') + '; the task continues.');
+    }
     if (option === 'accept') {
       task.status = 'open';
       task.needs_human_reason = null;
