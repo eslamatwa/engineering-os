@@ -540,7 +540,8 @@
         "read_logs",
         "summarize",
         "locate",
-        "inventory"
+        "inventory",
+        "triage"
       ],
       "tier": "fast"
     },
@@ -605,6 +606,12 @@
       "tier": "frontier"
     }
   ],
+  "task_modes": {
+    "read_only_kinds": [
+      "analysis",
+      "security_review"
+    ]
+  },
   "guards": {
     "code_edits_never_on": [
       "fast"

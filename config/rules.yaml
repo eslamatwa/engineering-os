@@ -211,7 +211,7 @@ tiers:
   availability: "asked once, stored in .engos/config.yaml models.available"
 
 step_tier_rules:                       # first match wins
-  - { step: [search, extract, read_logs, summarize, locate, inventory], tier: fast }
+  - { step: [search, extract, read_logs, summarize, locate, inventory, triage], tier: fast }
   - { step: implement, class: trivial_edit, executor: lead }
   - { step: [implement, tests, docs], kind: [bugfix, tests, docs], tier: balanced }
   - { step: implement, kind: [feature, refactor, debugging], tier: frontier }
@@ -224,6 +224,9 @@ validator_tier_rules:                  # by assurance, not by worker tier
   - { assurance: light, by: code_only }
   - { assurance: normal, tier: balanced }
   - { assurance: high, tier: frontier }
+
+task_modes:                            # D2/D4 scenarios: these kinds never edit; fixes open as new tasks
+  read_only_kinds: [analysis, security_review]
 
 guards:
   code_edits_never_on: [fast]

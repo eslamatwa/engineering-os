@@ -48,6 +48,9 @@ Run 2026-11-13 after the owner logged the bundled CLI in. Control run C0 (loggin
 | P6b | Calls made inside a subagent | PreToolUse and PostToolUse carry `agent_id` and `agent_type`. | H3 rule 6, H5 rule 1 |
 | P7 | Real model and subagent fields | Agent `PostToolUse` response has **`resolvedModel: claude-haiku-5-5`**. `SubagentStart`: `agent_id`, `agent_type`. `SubagentStop`: `agent_id`, `agent_type`, `agent_transcript_path`, `last_assistant_message`, `stop_hook_active`, `background_tasks`. No model field in either. Agents launched async by default (`status: async_launched`). | D23, D33, ledger |
 | P8 | Exit code of a failed Bash | `PostToolUseFailure` fires; `error` starts with `Exit code 3` followed by stderr. A command that ends in `; echo $?` exits 0 and goes to PostToolUse instead. | Evidence |
+| P10 | Plugin agent names | Plugin subagents are called with `subagent_type: engos:worker` (and `engos:scout`, `engos:validator`); hooks see the same string in `agent_type`. | D23, H5 |
+| P11 | SubagentStart injection | `additionalContext` from SubagentStart reaches the subagent: the role card and report template appear in its transcript, and it outranks a lead prompt asking for another format. | H10 |
+| P12 | SubagentStop send-back | `decision: block` from SubagentStop makes the subagent continue; the next stop has `stop_hook_active: true`. Agent `PostToolUse` arrives after SubagentStop with `status: completed` when the lead waits for the agent. | H11 |
 | P9 | Does `claude -p --resume <id>` keep the id? | **Yes, same `session_id`.** `SessionStart` fires with `source: resume`. With `--fork-session` the id changes and `source: fork`. | D34 |
 
 ### What this changes

@@ -46,6 +46,27 @@ agents:
 
 built_in_agents_allowed_in_task: [Explore, Plan]   # D24
 
+# Step kinds: who runs a planned step and the role card it gets. The router picks the tier
+# (config/rules.yaml step_tier_rules). Unknown kinds run on a worker as implementer.
+step_kinds:
+  locate:          { by: scout, role: triager }
+  search:          { by: scout, role: analyst }
+  extract:         { by: scout, role: analyst }
+  read_logs:       { by: scout, role: triager }
+  triage:          { by: scout, role: triager }
+  summarize:       { by: scout, role: analyst }
+  inventory:       { by: scout, role: analyst }
+  analyze:         { by: worker, role: analyst }
+  implement:       { by: worker, role: implementer }
+  tests:           { by: worker, role: implementer }
+  docs:            { by: worker, role: implementer }
+  design:          { by: worker, role: architect }
+  plan_migration:  { by: worker, role: architect }
+  critique:        { by: validator, role: critic }
+  verify:          { by: validator, role: evidence_validator }
+  review:          { by: validator, role: evidence_validator }
+  review_security: { by: validator, role: security_reviewer }
+
 roles:                                 # cards: keep each under ~1,500 characters
   implementer:       { does: "make the scoped change; report files changed and checks run" }
   triager:           { does: "locate the failure; cite exact files, lines or log lines" }

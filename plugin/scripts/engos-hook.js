@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 'use strict';
 // Engineering OS hook entry.
-// Usage: node engos-hook.js <session-start|pre-tool-use|post-tool-use|prompt-expansion>
+// Usage: node engos-hook.js <session-start|pre-tool-use|post-tool-use|post-tool-use-failure|subagent-start|subagent-stop|prompt-expansion>
 // Phase 1: session self-check (H1). Phase 2: write gate (H3), Bash gate (H4), observer (H7/H9).
 // Phase 3: approvals through Claude Code's own prompt (D46) and typed human commands (H2).
+// Phase 5: Agent gate (H5), role cards (H10), report checks (H11), escalation and the Fable ask.
 // Gate exit codes: 0 = allow (or `ask` JSON on stdout); 2 = block (stderr is the reason Claude sees).
 
 // D44: reuse compiled code between runs (Node 22.1+); harmless no-op on older Node.
@@ -73,6 +74,7 @@ function sessionStart(core, input) {
   if (check.hard.length) lines.push('Read-only because: ' + check.hard.join(' '));
   if (check.warn.length) lines.push('Warnings: ' + check.warn.join(' '));
   lines.push('How it works: small edits open a trivial task automatically. Bigger or sensitive work needs `engos profile set` and `engos plan set` (run with the Bash tool) before edits continue. Protected files, push, network and destructive commands ask the user through Claude Code\'s own prompt. Every refusal says what is needed. Never try to work around a refusal.');
+  lines.push('Agents: during a task, plan steps with `engos plan set --steps "S1:locate,S2:implement,S3:verify"` (or `engos step add`), then for each step run `engos step brief S2` and call the Agent tool with the subagent_type and model it prints and the brief as the prompt. Only engos:scout, engos:worker, engos:validator, Explore and Plan run during a task; one worker at a time. If a step is routed to Fable, ask the user first as the refusal explains.');
 
   const brief = briefExcerpt(core, root);
   if (brief) lines.push('Project brief (excerpt):\n' + brief);
@@ -122,10 +124,10 @@ function projectRules(core, root, session) {
   const file = core.engosPath(root, 'config.yaml');
   let mtime = 0;
   try { mtime = fs.statSync(file).mtimeMs; } catch (_) { /* missing */ }
-  if (session.config_cache && session.config_cache.mtime === mtime) return session.config_cache;
+  if (session.config_cache && session.config_cache.mtime === mtime && session.config_cache.models) return session.config_cache;
   const cfg = core.loadProjectConfig(root);
   const config = cfg.ok ? cfg.config : {};
-  session.config_cache = { mtime, protected: core.protectedFor(config), known: config.known_commands || [] };
+  session.config_cache = { mtime, protected: core.protectedFor(config), known: config.known_commands || [], models: { available: (config.models && config.models.available) || [] } };
   core.saveSession(root, session.session_id, session);
   return session.config_cache;
 }
@@ -182,7 +184,12 @@ function gateWrite(core, root, session, input, cfg) {
     return;
   }
 
+  const O = require('./engos-orchestrate.js');
+  const subRole = O.roleOfType(input.agent_type);
+  if (input.agent_id && (subRole === 'scout' || subRole === 'validator')) deny(core, root, sessionId, null, 'G-agent-readonly', input.tool_name, input.agent_type + ' never edits files. Report what should change instead.');
+
   let task = core.activeTask(root, sessionId);
+  if (task && O.readOnlyTask(task, core.defaults())) deny(core, root, sessionId, task, 'G-read-only-task', input.tool_name, task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: report findings and propose fixes as a new task instead of editing.');
   if (!task) {
     if (level === 'high_risk' || level === 'standard') {
       task = core.openTask(root, sessionId, { cls: level, state: 'upgrade_pending', openedBy: 'auto', trigger: 'F-protected:' + rel, sources: ['F-protected'], summary: 'Edit to ' + rel });
@@ -222,6 +229,13 @@ function gateWrite(core, root, session, input, cfg) {
   if (cls === 'standard' || cls === 'high_risk') {
     const scope = (task.planned.scope && task.planned.scope.write) || [];
     if (!R.matchAny(rel, scope)) deny(core, root, sessionId, task, 'G-scope', input.tool_name, rel + ' is outside the plan\'s write scope (' + scope.join(', ') + '). Widen it with `engos scope amend --add "<glob>" --reason "..."` (at most twice per task, never to a protected path), or stay inside the scope.');
+    // D47: once the plan gives implementation to workers, the lead's own edits are small integration fixes only.
+    const workerSteps = ((task.planned && task.planned.steps) || []).filter((x) => x.by === 'worker');
+    if (!input.agent_id && workerSteps.length) {
+      const budget = (core.defaults().rules.budgets || {}).lead_integration_edit || { max_files: 2 };
+      const mine = task.lead_files || [];
+      if (!mine.includes(rel) && mine.length >= budget.max_files) deny(core, root, sessionId, task, 'G-lead-budget', input.tool_name, 'the plan gives implementation to workers (' + workerSteps.map((x) => x.id).join(', ') + '), and the lead already edited ' + mine.length + ' files itself (' + mine.join(', ') + '; limit ' + budget.max_files + '). Run `engos step brief ' + workerSteps[0].id + '` and start the worker.');
+    }
   }
   if (level === 'high_risk' && !A.fileApproved(task, rel)) askFile(core, root, sessionId, task, rel);
 }
@@ -246,7 +260,13 @@ function gateBash(core, root, session, input, cfg) {
     deny(core, root, sessionId, null, 'G-read-only-session', 'Bash', 'this session is read-only, so only read commands can run. ' + (session.reasons || []).join(' '));
   }
 
+  const O = require('./engos-orchestrate.js');
+  const subRole = input.agent_id ? O.roleOfType(input.agent_type) : null;
+  if (subRole === 'scout' && !res.parts.every((p) => p.cls === 'read')) deny(core, root, sessionId, null, 'G-agent-readonly', 'Bash', 'engos:scout can only run read commands.');
+  if (subRole === 'validator' && !res.parts.every((p) => p.cls === 'read' || p.cls === 'check')) deny(core, root, sessionId, null, 'G-agent-readonly', 'Bash', 'engos:validator can only run read commands and `engos check <name>`.');
+
   let task = session.paused ? null : core.activeTask(root, sessionId);
+  if (task && O.readOnlyTask(task, core.defaults()) && !res.parts.every((p) => harmless(p.cls))) deny(core, root, sessionId, task, 'G-read-only-task', 'Bash', task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: only read commands and checks run. Suggest other commands to the user instead.');
   const taskCls = task ? task.effective.class : 'question';
   let worst = 'allow';
   let worstPart = null;
@@ -335,6 +355,7 @@ function postToolUse(core, input) {
   if (grantedThisCall) core.ledger(root, { type: 'approval.granted', actor: { kind: 'hook' }, approval_id: grantedThisCall.approval_id, kind: grantedThisCall.kind, method: 'native_prompt', decided_by: 'human', task_id: grantedThisCall.task_id, session_id: sessionId });
 
   if (!task) return;
+  if (input.tool_name === 'Agent' || input.tool_name === 'Task') return agentPost(core, root, task, input);
 
   // 2. Observe.
   let pkg = false;
@@ -355,6 +376,17 @@ function postToolUse(core, input) {
   task.observed = Object.assign(task.observed || {}, obs, { pkg_install: (task.observed && task.observed.pkg_install) || pkg });
 
   const messages = [];
+  // Who changed what (H11 compares a subagent's report with this; D47 counts the lead's own files).
+  const newFiles = (obs.files_touched || []).filter((x) => !(prevObs.files_touched || []).includes(x));
+  const thisFile = !isBash ? relPath(root, ti.file_path || ti.notebook_path) : null;
+  const changed = Array.from(new Set(newFiles.concat(thisFile ? [thisFile] : [])));
+  if (input.agent_id) {
+    const ag = (task.agents || []).find((x) => x.agent_id === input.agent_id);
+    if (ag) ag.files = Array.from(new Set((ag.files || []).concat(changed)));
+  } else if (thisFile) {
+    task.lead_files = Array.from(new Set((task.lead_files || []).concat([thisFile])));
+  }
+  if (!input.agent_id && (task.notices || []).length) { messages.push(task.notices.join(' ')); task.notices = []; }
   let violations = obs.protected_hits.filter((h) => !before.has(h.path) && (h.level === 'never' || (h.level === 'high_risk' && isBash)));
   if (violations.length && grantedThisCall && isBash) {
     // The person approved this exact command; record what it changed instead of flagging it.
@@ -380,6 +412,161 @@ function postToolUse(core, input) {
   core.saveProfile(root, task);
 
   if (messages.length) process.stdout.write(JSON.stringify({ decision: 'block', reason: messages.join(' ') }));
+}
+
+// ---------------------------------------------------------------------------
+// H5 · PreToolUse on Agent / Task
+// ---------------------------------------------------------------------------
+function gateAgent(core, root, session, input, cfg) {
+  const O = require('./engos-orchestrate.js');
+  const sessionId = session.session_id;
+  if (input.agent_id) deny(core, root, sessionId, null, 'G-no-nesting', input.tool_name, 'subagents can\'t start other agents (D24). Finish your step and put what else is needed in next_action.');
+  if (session.paused) return;
+  const task = core.activeTask(root, sessionId);
+  if (!task) return; // outside a task Claude Code's own rules apply
+  const D = core.defaults();
+  const models = { available: cfg.models.available, unavailable: O.loadUnavailable(root) };
+  const dec = O.agentDecision(task, input.tool_input || {}, D, models);
+  if (dec.deny) deny(core, root, sessionId, task, dec.deny, input.tool_name, dec.reason);
+  if (dec.askDeep) {
+    if (!task.deep_pending) {
+      task.deep_pending = { step: dec.step.id, asked_at: new Date().toISOString() };
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'model.asked', actor: { kind: 'hook' }, task_id: task.task_id, step: dec.step.id, tier: 'deep', session_id: sessionId });
+    }
+    deny(core, root, sessionId, task, 'G-deep-ask', input.tool_name, 'step ' + dec.step.id + ' (' + dec.step.kind + ') is routed to the deep tier (Fable), and Fable needs the user\'s yes for this task (D32). Don\'t start the agent yet. Explain to the user in a sentence or two why this step benefits from Fable, then ask them to type /engos:decide ' + task.task_id + ' fable (use Fable) or /engos:decide ' + task.task_id + ' no_fable (use Opus).');
+  }
+  const a = O.recordLaunch(task, dec);
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'step.assigned', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step, agent_type: a.type, role: a.role_card, tier: a.tier, model_requested: a.model_requested, attempt: a.attempt, session_id: sessionId });
+  if (dec.notes && dec.notes.length) {
+    process.stdout.write(JSON.stringify({ systemMessage: 'Engineering OS: ' + dec.notes.join('; ') + '.' }));
+  }
+}
+
+// PostToolUse on Agent: the real model (P7: resolvedModel) and the agent id when the response has one.
+function agentPost(core, root, task, input) {
+  const O = require('./engos-orchestrate.js');
+  const resp = input.tool_response || {};
+  const type = (input.tool_input || {}).subagent_type || 'general-purpose';
+  const list = (task.agents || []).filter((x) => x.type === type && !x.model_actual);
+  const a = list[list.length - 1];
+  if (!a) return;
+  const resolved = resp.resolvedModel || resp.resolved_model || null;
+  if (resolved) a.model_actual = String(resolved);
+  const aid = resp.agentId || resp.agent_id;
+  if (aid && !a.agent_id) a.agent_id = String(aid);
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'agent.model', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, model_requested: a.model_requested, model_actual: a.model_actual });
+  if (a.model_requested && a.model_actual && O.modelAlias(a.model_actual) !== a.model_requested) {
+    core.ledger(root, { type: 'model.mismatch', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, model_requested: a.model_requested, model_actual: a.model_actual });
+  }
+}
+
+// PostToolUseFailure on Agent: free the launch; a model the account lacks is marked unavailable (D32).
+function postToolUseFailure(core, input) {
+  if (input.tool_name !== 'Agent' && input.tool_name !== 'Task') return;
+  const root = core.findProjectRoot(projectStart(input));
+  if (!root) return;
+  const sessionId = sessionIdOf(input);
+  const task = core.activeTask(root, sessionId);
+  if (!task) return;
+  const O = require('./engos-orchestrate.js');
+  const type = (input.tool_input || {}).subagent_type || 'general-purpose';
+  const list = (task.agents || []).filter((x) => x.type === type && x.status === 'launched');
+  const a = list[list.length - 1];
+  if (!a) return;
+  const err = String(input.error || '');
+  let note = '';
+  a.status = 'failed';
+  a.error = err.slice(0, 300);
+  if (a.model_requested && /model|not available|unavailable|not found|access|permission|entitle/i.test(err)) {
+    O.markUnavailable(root, a.model_requested);
+    core.ledger(root, { type: 'model.unavailable', actor: { kind: 'hook' }, task_id: task.task_id, model: a.model_requested });
+    note = 'The ' + a.model_requested + ' model failed and is now marked unavailable for this project. Run the step brief again for the fallback model, and tell the user.';
+  }
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'step.failed', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step });
+  if (note) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext: 'Engineering OS: ' + note } }));
+}
+
+// ---------------------------------------------------------------------------
+// H10 · SubagentStart: role card and step contract
+// ---------------------------------------------------------------------------
+function subagentStart(core, input) {
+  const root = core.findProjectRoot(projectStart(input));
+  if (!root) return;
+  const sessionId = sessionIdOf(input);
+  const session = core.loadSession(root, sessionId);
+  if (!session || session.paused) return;
+  const task = core.activeTask(root, sessionId);
+  if (!task) return;
+  const O = require('./engos-orchestrate.js');
+  const a = O.bindStart(task, input.agent_id, input.agent_type);
+  if (!a) return;
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'step.started', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step, agent_id: a.agent_id, agent_type: a.type, model_requested: a.model_requested });
+  if (!O.roleOfType(a.type)) return;
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: O.startContext(task, a, core.defaults()) } }));
+}
+
+// ---------------------------------------------------------------------------
+// H11 · SubagentStop: check the report, compare with what was observed, record the verdict
+// ---------------------------------------------------------------------------
+function subagentStop(core, input) {
+  const root = core.findProjectRoot(projectStart(input));
+  if (!root) return;
+  const sessionId = sessionIdOf(input);
+  const task = core.activeTask(root, sessionId);
+  if (!task) return;
+  const O = require('./engos-orchestrate.js');
+  const a = O.findByAgentId(task, input.agent_id);
+  if (!a) return;
+  const now = new Date().toISOString();
+  if (!O.roleOfType(a.type)) { // Explore / Plan: just record
+    a.status = 'ended';
+    a.ended_at = now;
+    core.saveProfile(root, task);
+    core.ledger(root, { type: 'step.ended', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, agent_id: a.agent_id });
+    return;
+  }
+  const chk = O.checkReport(root, task, a, input.last_assistant_message, core.yamlLib());
+  if (chk.problems.length && !input.stop_hook_active && !(a.report_retries >= 1)) {
+    a.report_retries = (a.report_retries || 0) + 1;
+    core.saveProfile(root, task);
+    core.ledger(root, { type: 'step.report_rejected', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, problems: chk.problems });
+    process.stdout.write(JSON.stringify({ decision: 'block', reason: 'Engineering OS: your report needs fixing before you stop: ' + chk.problems.join('; ') + '. End with the corrected engos/report@1 YAML block.' }));
+    return;
+  }
+  a.status = 'ended';
+  a.ended_at = now;
+  a.report_status = chk.report ? chk.report.status : null;
+  a.report_problems = chk.problems;
+  if (chk.report) {
+    const dir = path.join(core.tasksDir(root), task.task_id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, (a.step || 'free') + '.report-' + a.id + '.json'), JSON.stringify(chk.report, null, 2));
+  }
+  const st = a.step ? O.stepState(task, a.step) : null;
+  if (st && a.role !== 'worker') st.status = 'done';
+  if (st && a.role === 'worker' && chk.report && chk.report.status === 'blocked') st.status = 'blocked_by_worker';
+  if (chk.facts.components && chk.facts.components.length > 1 && !task.cross_system) {
+    task.cross_system = true; // D22: later steps go one tier up
+    core.ledger(root, { type: 'uncertainty.cross_system', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, components: chk.facts.components });
+  }
+  if (a.role === 'validator' && chk.report) {
+    const rec = { step: a.step, launch: a.id, verdict: chk.report.verdict || null, refs_ok: !!chk.facts.refs_ok, findings: (chk.report.findings || []).length, max_severity: chk.facts.max_severity || 0, role: a.role_card, at: now, report_ok: !chk.problems.length };
+    task.reviews = (task.reviews || []).concat([rec]);
+    core.ledger(root, { type: 'validation.verdict', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step, verdict: rec.verdict, refs_ok: rec.refs_ok, findings: rec.findings });
+  }
+  if (chk.problems.length) {
+    const msg = 'Engineering OS: the report from ' + a.type + ' (' + (a.step || a.id) + ') still has problems: ' + chk.problems.join('; ') + '. Treat its claims as unverified.';
+    task.notices = (task.notices || []).concat([msg]);
+    core.ledger(root, { type: 'step.report_problems', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, problems: chk.problems });
+  }
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'step.ended', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step, agent_id: a.agent_id, model_requested: a.model_requested, model_actual: a.model_actual, status: a.report_status, files: a.files });
+  if (chk.problems.length) process.stdout.write(JSON.stringify({ systemMessage: 'Engineering OS: the ' + (a.step || a.id) + ' report had ' + chk.problems.length + ' problem(s); the lead was told to treat it as unverified.' }));
 }
 
 // ---------------------------------------------------------------------------
@@ -439,6 +626,15 @@ function promptExpansion(core, input) {
       core.ledger(root, { type: 'close.acknowledged', actor: { kind: 'human' }, task_id: id, session_id: sessionId });
       return tell(id + ': close confirmed. Claude can now run `engos task close ' + id + '`.');
     }
+    if ((option === 'fable' || option === 'no_fable') && task.deep_pending && task.status !== 'needs_human') { // D32 ask before Fable
+      if (resumedAfter(session, task.deep_pending.asked_at)) return tell('this session was resumed after Claude asked, so the answer can\'t be accepted here (D35). Ask Claude to start the step again so it asks once more.');
+      task.deep_answer = option === 'fable' ? 'yes' : 'no';
+      const step = task.deep_pending.step;
+      task.deep_pending = null;
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'model.answered', actor: { kind: 'human' }, task_id: id, tier: 'deep', step, answer: task.deep_answer, session_id: sessionId });
+      return tell(id + ': ' + (task.deep_answer === 'yes' ? 'Fable approved for this task. Claude can start ' + step + ' with model "fable".' : 'no Fable. ' + step + ' runs on Opus (model "opus").'));
+    }
     if (task.status !== 'needs_human') return tell(id + ' isn\'t waiting for a decision.');
     if (resumedAfter(session, task.needs_human_at)) {
       core.ledger(root, { type: 'typed_command.refused', actor: { kind: 'hook' }, command: 'decide', task_id: id, reason: 'resumed_after_request' });
@@ -458,6 +654,27 @@ function promptExpansion(core, input) {
       core.saveProfile(root, task);
       core.ledger(root, { type: 'decision.recorded', actor: { kind: 'human' }, task_id: id, option, session_id: sessionId });
       return tell(id + ': amendment ' + (option === 'approve_amendment' ? 'approved' : 'rejected') + '; the task continues.');
+    }
+    if (option === 'retry' || option === 'fable') { // D20 handover answer
+      require('./engos-orchestrate.js').applyRetry(task, option);
+      task.status = 'open';
+      task.needs_human_reason = null;
+      task.decision_options = null;
+      task.history.push({ at: new Date().toISOString(), from: 'needs_human', to: 'open', trigger: 'human_decision:' + option });
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'decision.recorded', actor: { kind: 'human' }, task_id: id, option, session_id: sessionId });
+      if (option === 'fable') core.ledger(root, { type: 'model.answered', actor: { kind: 'human' }, task_id: id, tier: 'deep', answer: 'yes', session_id: sessionId });
+      return tell(id + ': one more attempt on ' + (option === 'fable' ? 'Fable' : 'the frontier tier') + '. Claude can run the step brief again.');
+    }
+    if (option === 'validator' || option === 'worker') { // D25 dispute settled by the human
+      const dsp = (task.disputes || []).filter((d) => !d.resolved_by).pop();
+      if (dsp) { dsp.resolved_by = 'human'; dsp.outcome = option; dsp.resolved_at = new Date().toISOString(); }
+      task.status = 'open';
+      task.needs_human_reason = null;
+      task.decision_options = null;
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'dispute.resolved', actor: { kind: 'human' }, task_id: id, dispute: dsp ? dsp.id : null, resolved_by: 'human', outcome: option, session_id: sessionId });
+      return tell(id + ': dispute settled in favour of the ' + option + '. The task continues.');
     }
     if (option === 'accept') {
       task.status = 'open';
@@ -497,7 +714,7 @@ function preToolUse(core, input) {
   const cfg = projectRules(core, root, session);
   if (WRITE_TOOLS.has(input.tool_name)) return gateWrite(core, root, session, input, cfg);
   if (input.tool_name === 'Bash') return gateBash(core, root, session, input, cfg);
-  // Agent / Task: gated in build phase 5.
+  if (input.tool_name === 'Agent' || input.tool_name === 'Task') return gateAgent(core, root, session, input, cfg);
 }
 
 function main() {
@@ -517,6 +734,9 @@ function main() {
     if (mode === 'pre-tool-use') return preToolUse(core, input);
     if (mode === 'post-tool-use') return postToolUse(core, input);
     if (mode === 'prompt-expansion') return promptExpansion(core, input);
+    if (mode === 'post-tool-use-failure') return postToolUseFailure(core, input);
+    if (mode === 'subagent-start') return subagentStart(core, input);
+    if (mode === 'subagent-stop') return subagentStop(core, input);
   } catch (e) {
     if (mode === 'pre-tool-use') block('internal gate error, so the call is blocked to stay safe: ' + e.message);
     if (mode === 'post-tool-use') {

@@ -1,5 +1,5 @@
 {
-  "description": "Engineering OS hooks. Phase 3: session self-check, write and Bash gates with approvals through Claude Code's prompt, change observer, typed human commands. See docs/hooks.md.",
+  "description": "Engineering OS hooks. Phase 5: session self-check, write/Bash/Agent gates, approvals through Claude Code's prompt, change observer, typed human commands, subagent role cards and report checks. See docs/hooks.md.",
   "hooks": {
     "SessionStart": [
       {
@@ -28,7 +28,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Agent|Task",
         "hooks": [
           {
             "type": "command",
@@ -46,6 +46,40 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" prompt-expansion",
             "timeout": 15,
             "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" post-tool-use-failure",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" subagent-start",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" subagent-stop",
+            "timeout": 20
           }
         ]
       }

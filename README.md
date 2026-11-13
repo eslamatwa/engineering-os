@@ -2,7 +2,7 @@
 
 A Claude Code plugin that catches mistakes before they land. It classifies each request from what the code actually touches, routes every step to the right Claude model, blocks what policy forbids, asks you before anything leaves your machine, and accepts nothing as done without recorded evidence.
 
-**Status:** build phases 1–4 (skeleton, gate, approvals, evidence) done; phases 5–7 to go. Platform spike rounds 1–3 done (Desktop status line and web still to check). See `docs/build-plan.md` and `docs/phase-results.md`.
+**Status:** build phases 1–5 (skeleton, gate, approvals, evidence, orchestration) done; phases 6–7 to go. Platform spike rounds 1–3 done (Desktop status line and web still to check). See `docs/build-plan.md` and `docs/phase-results.md`.
 
 ## What it protects against
 

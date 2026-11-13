@@ -237,3 +237,40 @@ All unit tests: 52 of 52.
 | P4-E2 | A rename that breaks the test, then close | Check recorded FAILED (exit 1); close refused with the exact reason; Claude did not work around it and asked the user to choose between fixing the test and accepting the failure. |
 
 Finding: in P4-E2 a task opened on a command the truncated summary showed as read-only. The full command is now logged when a command opens a task, and more read-only tools are recognised.
+
+## Phase 5 · Orchestration (2026-11-13)
+
+Built: `plugin/agents/` (scout, worker, validator), `plugin/scripts/engos-orchestrate.js` (router, Agent gate, role cards, report checks, escalation, disputes), new hook events (SubagentStart, SubagentStop, PostToolUseFailure on Agent, PostToolUse on Agent), CLI `step add|list|brief`, `dispute open|settle`, `facts add`, check labelling and handover, E-review-record at high_risk close.
+
+### Unit tests (tests/unit/phase5.test.js, 15)
+
+| Scenario | Result |
+| --- | --- |
+| Router: executor, role and tier per step from config | Pass |
+| C5 · a subagent can't start agents | Pass |
+| C8 · wrong model refused with the expected tier; real model recorded from resolvedModel | Pass |
+| C9 · one writer at a time; general-purpose denied; Explore and scouts allowed in parallel | Pass |
+| H10/H11 · role card at start; mismatched report sent back once, then the lead is told | Pass |
+| Scout and validator can't edit; scout Bash read-only | Pass |
+| C1 · attempts on sonnet, sonnet (with prior_failure), opus; then blocked with handover; retry is the user's | Pass |
+| C2 · env_error doesn't count; the second goes to the user | Pass |
+| C3 · deep step needs the user's yes from the same session; yes → fable, no → opus; recorded | Pass |
+| C4 · fable not on the account → opus with a note; a failed call marks the model unavailable | Pass |
+| C10 · lead settles one dispute in standard; the next, high_risk and medium security findings go to the user | Pass |
+| E-review-record · validator refs must exist; a pass lets high_risk close | Pass |
+| D47 · lead edits at most 2 files once worker steps are planned | Pass |
+| D2/D4 · analysis and security_review tasks are read-only; facts need a real source | Pass |
+| D3 · triage needs a hypothesis and verbatim quotes; two components raise later tiers | Pass |
+
+All unit tests: 67 of 67.
+
+### End-to-end in real Claude Code (2.1.321, headless, narrow tool allowlist)
+
+| # | Request | Result |
+| --- | --- | --- |
+| P5-E1 | Sonnet lead: fix a failing test using steps S1:implement and S2:verify | Lead ran `engos plan set --steps`, `engos step brief S1`, started `engos:worker` on sonnet (balanced tier). The worker got the role card, fixed the bug, ran `engos check test` and returned a valid report on the first try. The validator (sonnet) reviewed with a real ref and verdict pass. The lead ran the check and closed TASK-001. Ledger: step.assigned → started → ended, agent.model `claude-sonnet-5-5`, validation.verdict pass, task.closed. |
+| P5-E2 | Haiku lead asks a scout for "one plain sentence, no YAML" | The role card outranked the prompt; SubagentStop sent the report back once (`step.report_rejected`), the scout fixed it and stopped with `stop_hook_active: true`. |
+
+Finding from P5-E2: an unplanned scout was asked for a hypothesis while only listing files. Uncertainty checks (D22) now apply to planned analysis and debugging steps only.
+
+Not run end to end (unit-tested only): Fable ask with a real Fable call, a real model-unavailable failure, three real failed attempts. D1 (no repo) is covered by init (phase 1); unknowns-as-questions is guidance, not code.

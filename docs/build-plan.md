@@ -39,7 +39,7 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** C6, C7, A1 close path.
 
-## Phase 5 · Orchestration
+## Phase 5 · Orchestration — done 2026-11-13 (see docs/phase-results.md)
 
 - Three subagent files; role cards via SubagentStart; brief and report schemas; report check at SubagentStop.
 - Router and validator tier; Agent gate (types, model, no nesting, one writer).

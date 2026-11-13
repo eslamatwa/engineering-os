@@ -71,6 +71,76 @@
     "Explore",
     "Plan"
   ],
+  "step_kinds": {
+    "locate": {
+      "by": "scout",
+      "role": "triager"
+    },
+    "search": {
+      "by": "scout",
+      "role": "analyst"
+    },
+    "extract": {
+      "by": "scout",
+      "role": "analyst"
+    },
+    "read_logs": {
+      "by": "scout",
+      "role": "triager"
+    },
+    "triage": {
+      "by": "scout",
+      "role": "triager"
+    },
+    "summarize": {
+      "by": "scout",
+      "role": "analyst"
+    },
+    "inventory": {
+      "by": "scout",
+      "role": "analyst"
+    },
+    "analyze": {
+      "by": "worker",
+      "role": "analyst"
+    },
+    "implement": {
+      "by": "worker",
+      "role": "implementer"
+    },
+    "tests": {
+      "by": "worker",
+      "role": "implementer"
+    },
+    "docs": {
+      "by": "worker",
+      "role": "implementer"
+    },
+    "design": {
+      "by": "worker",
+      "role": "architect"
+    },
+    "plan_migration": {
+      "by": "worker",
+      "role": "architect"
+    },
+    "critique": {
+      "by": "validator",
+      "role": "critic"
+    },
+    "verify": {
+      "by": "validator",
+      "role": "evidence_validator"
+    },
+    "review": {
+      "by": "validator",
+      "role": "evidence_validator"
+    },
+    "review_security": {
+      "by": "validator",
+      "role": "security_reviewer"
+    }
+  },
   "roles": {
     "implementer": {
       "does": "make the scoped change; report files changed and checks run"

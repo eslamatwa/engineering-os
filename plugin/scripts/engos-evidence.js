@@ -112,7 +112,13 @@ function evaluateClose(task, config, opts) {
   }
 
   if (cls === 'high_risk') {
-    notYet.push('E-review-record: an independent validator review (arrives in build phase 5; not enforced yet)');
+    // E-review-record: a validator verdict after the last change, with refs that code confirmed exist (phase 5).
+    const reviews = (task.reviews || []).filter((r) => !lastChange || Date.parse(r.at) >= lastChange);
+    const last = reviews[reviews.length - 1];
+    if (!last) missing.push('E-review-record: an independent validator review after the last change. Add a step (engos step add --step "S9:verify"), run engos step brief S9 and start engos:validator');
+    else if (last.verdict !== 'pass') missing.push('E-review-record: the latest validator verdict (' + last.step + ') is ' + (last.verdict || 'missing') + '. Fix the findings and review again, or open a dispute (engos dispute open)');
+    else if (!last.refs_ok || !last.report_ok) missing.push('E-review-record: the latest validator report (' + last.step + ') had refs or fields code could not verify; review again');
+    else met.push('E-review-record (' + last.step + ')');
     if (!task.close_acknowledged) missing.push('the user\'s confirmation: ask them to type /engos:decide ' + task.task_id + ' close');
   }
 

@@ -263,6 +263,9 @@ function cmdTask(args) {
         const runs = require(path.join(__dirname, 'engos-evidence.js')).latestRuns(t);
         for (const n of Object.keys(runs)) console.log('  check ' + n + ': ' + (runs[n].passed ? 'passed' : 'failed (exit ' + runs[n].exit + ')') + ' at ' + runs[n].at.slice(11, 19) + (t.last_change_at && Date.parse(runs[n].at) < Date.parse(t.last_change_at) ? ' (before the latest change)' : ''));
         if (t.planned && (t.planned.acceptance || []).length) console.log('  acceptance: ' + t.planned.acceptance.map((a) => a.id + ' ' + a.statement).join('; '));
+        for (const st of (t.planned && t.planned.steps) || []) console.log('  step ' + stepLine(t, st));
+        for (const a of t.agents || []) console.log('  agent ' + a.id + ' ' + a.type + (a.step ? ' ' + a.step : '') + ' ' + (a.model_actual || a.model_requested || '') + ' ' + a.status + (a.result ? ' (' + a.result + ')' : ''));
+        for (const d of t.disputes || []) console.log('  dispute ' + d.id + ' about ' + d.about + ': ' + (d.resolved_by ? 'settled by the ' + d.resolved_by + ' for the ' + d.outcome : 'open, settled by the ' + d.settler));
         const files = Object.keys(t.approved_files || {});
         if (files.length) console.log('  protected files approved: ' + files.join(', '));
         const missing = R.missingRequirements(t);
@@ -369,13 +372,17 @@ function cmdPlan(args) {
   if (prev.length) fail(task.task_id + ' already has a plan. Use engos scope amend to widen it.');
   task.planned = {
     scope: { write, read: list(args['scope-read']) },
-    steps: list(args.steps).map((s) => { const parts = s.split(':'); return { id: parts[0], kind: parts[1] || 'implement' }; }),
+    steps: [],
     acceptance: criteria(args.acceptance),
     set_at: new Date().toISOString(),
   };
   core.ledger(root, { type: 'plan.set', actor: { kind: 'cli' }, task_id: task.task_id, scope_write: write });
   const r = core.ratchet(root, task, 'plan', protectedPaths(root));
+  const specs = list(args.steps).concat(all(args, 'step'));
+  if (specs.length) addSteps(root, task, specs);
   report(root, task, r);
+  for (const st of task.planned.steps) console.log('  ' + stepLine(task, st));
+  if (task.planned.steps.length) console.log('Start a step with: engos step brief ' + task.planned.steps[0].id);
 }
 
 function criteria(v) {
@@ -402,10 +409,12 @@ function cmdCheck(args) {
   if (task) {
     task.evidence = task.evidence || {};
     task.evidence.checks = (task.evidence.checks || []).concat([rec]);
+    rec.label = O.labelCheck(r.exit, r.output);
     core.saveProfile(root, task);
   }
   core.ledger(root, Object.assign({ type: 'evidence.recorded', actor: { kind: 'cli' }, task_id: task ? task.task_id : null }, rec));
   console.log('engos check ' + r.name + ': ' + (r.passed ? 'passed' : 'FAILED') + ' (exit ' + r.exit + (r.timed_out ? ', timed out' : '') + ', ' + Math.round(r.duration_ms / 1000) + 's)' + (task ? ', recorded on ' + task.task_id : ', no open task to record it on'));
+  if (task) { escalateAfterCheck(root, task, r); core.saveProfile(root, task); }
   process.exit(r.exit === 0 ? 0 : 1);
 }
 
@@ -459,6 +468,192 @@ function cmdScope(args) {
 }
 
 // ---------------------------------------------------------------------------
+// steps, disputes, facts (phase 5)
+// ---------------------------------------------------------------------------
+const O = require(path.join(__dirname, 'engos-orchestrate.js'));
+
+function modelsFor(root) {
+  const cfg = core.loadProjectConfig(root);
+  const c = cfg.ok ? cfg.config : {};
+  return { available: (c.models && c.models.available) || [], unavailable: O.loadUnavailable(root) };
+}
+
+function addSteps(root, task, specs) {
+  const D = core.defaults();
+  let steps;
+  try { steps = O.planSteps(task, specs, D); } catch (e) { fail(e.message); }
+  const have = new Set(((task.planned && task.planned.steps) || []).map((s) => s.id));
+  for (const s of steps) if (have.has(s.id)) fail('step ' + s.id + ' already exists in ' + task.task_id);
+  task.planned.steps = ((task.planned && task.planned.steps) || []).concat(steps);
+  task.effective.roles = O.rolesFor(task, D);
+  for (const s of steps) core.ledger(root, { type: 'step.assigned', actor: { kind: 'cli' }, task_id: task.task_id, step: s.id, kind: s.kind, by: s.by, role: s.role, tier: s.tier, rule_id: s.rule_id });
+  return steps;
+}
+
+function stepLine(task, s) {
+  const st = (task.step_state || {})[s.id] || { status: 'pending' };
+  const tries = O.launchesFor(task, s.id).length;
+  return s.id + '  ' + s.kind + '  by ' + (s.by === 'lead' ? 'the lead' : 'engos:' + s.by) + (s.tier ? '  tier ' + s.tier : '') + '  role ' + s.role + '  [' + st.status + (tries ? ', ' + tries + ' launch' + (tries > 1 ? 'es' : '') : '') + ']';
+}
+
+function cmdStep(args) {
+  const sub = args._[1];
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  const D = core.defaults();
+  if (sub === 'add') {
+    if (!task.planned || !task.planned.scope) fail(task.task_id + ' has no plan yet. Use engos plan set first.');
+    const specs = all(args, 'step').concat(list(args.steps));
+    if (!specs.length) fail('use: engos step add --step "S3:verify"   (kinds: ' + Object.keys(D.agents.step_kinds || {}).join(', ') + ')');
+    const added = addSteps(root, task, specs);
+    core.saveProfile(root, task);
+    for (const s of added) console.log('added ' + stepLine(task, s));
+    return;
+  }
+  if (sub === 'list' || sub === undefined) {
+    const steps = (task.planned && task.planned.steps) || [];
+    if (!steps.length) return console.log(task.task_id + ' has no steps. The lead does the work itself, or add steps with engos step add.');
+    for (const s of steps) console.log(stepLine(task, s));
+    return;
+  }
+  if (sub === 'brief') {
+    const id = String(args._[2] || '').toUpperCase();
+    const step = ((task.planned && task.planned.steps) || []).find((s) => s.id === id);
+    if (!step) fail('no step ' + (id || '?') + ' in ' + task.task_id + '. Steps: ' + (((task.planned && task.planned.steps) || []).map((s) => s.id).join(', ') || 'none'));
+    if (task.status === 'needs_human') fail(task.task_id + ' is waiting for the user\'s decision: ' + (task.needs_human_reason || '') + ' (options: ' + (task.decision_options || []).join(', ') + ').');
+    const exp = O.expectedFor(task, step, D, modelsFor(root));
+    if (exp.lead) return console.log(step.id + ' is a trivial edit: the lead does it itself, no agent.');
+    if (exp.blocked) fail(step.id + ' has used its attempts; the user decides next.');
+    if (exp.ask) {
+      console.log(step.id + ' (' + step.kind + ') is routed to the deep tier (Fable), which needs the user\'s yes for this task (D32).');
+      console.log('Explain to the user why this step benefits from Fable, then ask them to type /engos:decide ' + task.task_id + ' fable  or  /engos:decide ' + task.task_id + ' no_fable');
+      return;
+    }
+    const scope = (task.planned.scope || {});
+    const runs = require(path.join(__dirname, 'engos-evidence.js')).latestRuns(task);
+    const prev = O.launchesFor(task, step.id).filter((a) => a.result === 'check_failed').pop();
+    const failed = Object.keys(runs).filter((n) => !runs[n].passed);
+    const brief = {
+      schema: 'engos/brief@1',
+      task_id: task.task_id,
+      step_id: step.id,
+      attempt: exp.attempt,
+      role: step.role,
+      tier: exp.tier,
+      objective: args.objective && args.objective !== true ? String(args.objective) : (task.request.summary || '') + ' (step ' + step.id + ': ' + step.kind + ')',
+      scope: { write: step.by === 'worker' ? (scope.write || []) : [], read: scope.read && scope.read.length ? scope.read : ['**'] },
+      acceptance: (task.planned.acceptance || []).map((a) => ({ id: a.id, statement: a.statement })),
+      checks: step.by === 'scout' ? [] : require(path.join(__dirname, 'engos-evidence.js')).requiredChecks((core.loadProjectConfig(root).config) || {}).map((n) => 'engos check ' + n),
+      prior_failure: prev ? { attempt: prev.attempt, tier: prev.tier, failing_checks: failed, output: 'PASTE the failing output from your last engos check run here (D20: the retry gets the exact output)' } : null,
+      return: 'engos/report@1',
+    };
+    console.log('Start ' + step.id + ' with the Agent tool:');
+    console.log('  subagent_type: engos:' + step.by);
+    console.log('  model: ' + exp.model + '   (' + exp.tier + ' tier' + (exp.notes.length ? '; ' + exp.notes.join('; ') : '') + ')');
+    console.log('  prompt: the brief below, with objective filled in. Keep the step_id line: the gate reads it.');
+    console.log('');
+    console.log(core.yamlLib().dump(brief, { lineWidth: 140 }).trim());
+    core.ledger(root, { type: 'step.briefed', actor: { kind: 'cli' }, task_id: task.task_id, step: step.id, attempt: exp.attempt, tier: exp.tier, model: exp.model });
+    return;
+  }
+  fail('use: engos step add --step "S3:verify" | engos step list | engos step brief S2 [--objective "..."]');
+}
+
+function cmdDispute(args) {
+  const sub = args._[1];
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  task.disputes = task.disputes || [];
+  if (sub === 'open') {
+    const about = args.about; const reason = args.reason;
+    if (!about || about === true || !reason || reason === true) fail('use: engos dispute open --about AC-2 --reason "..." [--step S3] [--security --severity medium]');
+    const who = O.disputeSettler(task, { security: !!args.security, severity: args.severity }, core.defaults());
+    const d = { id: 'DSP-' + (task.disputes.length + 1), about: String(about), step: args.step && args.step !== true ? String(args.step) : null, reason: String(reason), security: !!args.security, severity: args.severity && args.severity !== true ? String(args.severity) : null, settler: who.by, opened_at: new Date().toISOString() };
+    task.disputes.push(d);
+    core.ledger(root, { type: 'dispute.opened', actor: { kind: 'cli' }, task_id: task.task_id, dispute: d.id, about: d.about, settler: who.by, why: who.why });
+    if (who.by === 'human') {
+      task.status = 'needs_human';
+      task.needs_human_reason = 'dispute ' + d.id + ' about ' + d.about + ': ' + d.reason + ' (' + who.why + ')';
+      task.needs_human_at = new Date().toISOString();
+      task.decision_options = ['validator', 'worker'];
+      core.saveProfile(root, task);
+      console.log(d.id + ' goes to the user: ' + who.why + '. Show them both sides, then ask them to type /engos:decide ' + task.task_id + ' validator  or  /engos:decide ' + task.task_id + ' worker');
+      return;
+    }
+    core.saveProfile(root, task);
+    console.log(d.id + ': ' + who.why + '. Settle it with: engos dispute settle ' + d.id + ' --side validator|worker --reason "..."');
+    return;
+  }
+  if (sub === 'settle') {
+    const id = String(args._[2] || '');
+    const d = task.disputes.find((x) => x.id === id);
+    if (!d) fail('no dispute ' + id + ' in ' + task.task_id);
+    if (d.resolved_by) fail(id + ' is already settled by the ' + d.resolved_by);
+    if (d.settler !== 'lead') fail(id + ' is settled by the user, not the lead (D25).');
+    const side = String(args.side || '');
+    if (!['validator', 'worker'].includes(side) || !args.reason || args.reason === true) fail('use: engos dispute settle ' + id + ' --side validator|worker --reason "..."');
+    d.resolved_by = 'lead'; d.outcome = side; d.resolution_reason = String(args.reason); d.resolved_at = new Date().toISOString();
+    core.saveProfile(root, task);
+    core.ledger(root, { type: 'dispute.resolved', actor: { kind: 'cli' }, task_id: task.task_id, dispute: id, resolved_by: 'lead', outcome: side, reason: d.resolution_reason });
+    console.log(id + ' settled for the ' + side + ' and recorded. Any further dispute in ' + task.task_id + ' goes to the user.');
+    return;
+  }
+  fail('use: engos dispute open --about AC-2 --reason "..." | engos dispute settle DSP-1 --side validator|worker --reason "..."');
+}
+
+function cmdFacts(args) {
+  if (args._[1] !== 'add') fail('use: engos facts add --fact "..." --source path:line|human   or   engos facts add --assumption "..."');
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  task.facts = task.facts || [];
+  if (args.assumption && args.assumption !== true) {
+    task.facts.push({ kind: 'assumed', text: String(args.assumption), at: new Date().toISOString() });
+    core.saveProfile(root, task);
+    core.ledger(root, { type: 'fact.added', actor: { kind: 'cli' }, task_id: task.task_id, kind: 'assumed' });
+    return console.log('recorded as an assumption.');
+  }
+  const fact = args.fact; const source = args.source;
+  if (!fact || fact === true || !source || source === true) fail('a fact needs --fact "..." and --source path:line (or --source human for output the user gave you)');
+  const src = String(source);
+  if (src !== 'human' && !O.refExists(root, src)) fail(src + ' doesn\'t exist in the repo (or the line is past the end), so this can\'t be stored as a verified fact. Fix the source or store it with --assumption.');
+  task.facts.push({ kind: 'verified', text: String(fact), source: src, at: new Date().toISOString() });
+  core.saveProfile(root, task);
+  core.ledger(root, { type: 'fact.added', actor: { kind: 'cli' }, task_id: task.task_id, kind: 'verified', source: src });
+  console.log('recorded as a verified fact (source ' + src + ').');
+}
+
+// After a check: label it and move escalation on (D20, D21).
+function escalateAfterCheck(root, task, r) {
+  const D = core.defaults();
+  const label = O.labelCheck(r.exit, r.output);
+  const esc = O.applyCheck(task, label, D);
+  if (!esc.step) return label;
+  const E = require(path.join(__dirname, 'engos-evidence.js'));
+  if (esc.blocked || esc.envLimit) {
+    const reason = esc.blocked ? 'attempts_exhausted' : 'env_error_limit';
+    const h = O.handover(task, reason, E.latestRuns(task), D, modelsFor(root));
+    fs.writeFileSync(path.join(core.tasksDir(root), task.task_id, 'handover.json'), JSON.stringify(h, null, 2));
+    task.status = 'needs_human';
+    task.needs_human_reason = esc.blocked ? 'step ' + esc.step + ' failed its checks ' + esc.failures + ' times' : 'step ' + esc.step + ' hit two environment errors';
+    task.needs_human_at = new Date().toISOString();
+    task.decision_options = h.options.map((o) => o.id);
+    core.ledger(root, { type: 'responsibility.transferred', actor: { kind: 'cli' }, task_id: task.task_id, from: 'lead', to: 'human', reason, step: esc.step });
+    console.log('');
+    console.log(task.task_id + ' is blocked and goes to the user (' + reason + '). Handover:');
+    console.log(core.yamlLib().dump(h, { lineWidth: 140 }).trim());
+    console.log('Tell the user what was tried, add your recommendation, and ask them to type /engos:decide ' + task.task_id + ' <' + task.decision_options.join('|') + '>.');
+  } else if (label === 'env_error') {
+    console.log('Labelled env_error (missing command or dependency): it doesn\'t count as an attempt for ' + esc.step + '. Fix the environment and run the check again. A second env_error in this step goes to the user.');
+  } else if (label === 'check_failed') {
+    const st = (task.step_state || {})[esc.step] || {};
+    console.log('Attempt ' + esc.failures + ' of ' + (st.allowed_attempts || 3) + ' for ' + esc.step + ' failed. For the next attempt run `engos step brief ' + esc.step + '` (it gives the tier) and include the failing output above as prior_failure.');
+  } else if (label === 'passed') {
+    console.log(esc.step + ' passes its checks.');
+  }
+  return label;
+}
+
+// ---------------------------------------------------------------------------
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
@@ -471,12 +666,15 @@ function main() {
     case 'scope': return cmdScope(args);
     case 'check': return cmdCheck(args);
     case 'criteria': return cmdCriteria(args);
+    case 'step': return cmdStep(args);
+    case 'dispute': return cmdDispute(args);
+    case 'facts': return cmdFacts(args);
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

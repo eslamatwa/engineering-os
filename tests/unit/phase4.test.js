@@ -170,8 +170,16 @@ test('a high_risk task needs the user to confirm the close, from the same sessio
   cli(dir, ['check', 'test']);
   let c = cli(dir, ['task', 'close', id, '--residual-risk', 'sessions last longer']);
   assert.strictEqual(c.code, 1);
+  assert.match(c.stdout, /E-review-record: an independent validator review/); // phase 5
+  assert.notStrictEqual(core.loadProfile(dir, id).awaiting_close_ack, true);
+  // A validator review as the SubagentStop hook records it (tested end to end in phase5.test.js).
+  const p = core.loadProfile(dir, id);
+  p.reviews = [{ step: 'S9', verdict: 'pass', refs_ok: true, report_ok: true, at: new Date().toISOString() }];
+  core.saveProfile(dir, p);
+  c = cli(dir, ['task', 'close', id, '--residual-risk', 'sessions last longer']);
+  assert.strictEqual(c.code, 1);
   assert.match(c.stdout, /\/engos:decide .* close/);
-  assert.match(c.stdout, /Not enforced yet: E-review-record/);
+  assert.match(c.stdout, /E-review-record \(S9\)/);
   assert.strictEqual(core.loadProfile(dir, id).awaiting_close_ack, true);
 
   const other = hook('prompt-expansion', dir, { prompt: '/engos:decide ' + id + ' close' }, 'another-session');
