@@ -188,6 +188,8 @@ function observe(root, base, protectedPaths, opts) {
       if (!changed) continue;
       // Written by Engineering OS itself; the ledger is checked against its recorded size below instead.
       if (rel === '.engos/ledger.jsonl' || rel.startsWith('.engos/sessions/')) continue;
+      // Approval records: fine only if the file is exactly what a hook last wrote.
+      if (rel.startsWith('.engos/approvals/') && b && require('./engos-approvals.js').isOwnRecord(root, rel)) continue;
       if (!protectedHits.some((h) => h.path === rel)) protectedHits.push({ path: rel, level: (b || a).level, via: 'snapshot' });
     }
     // Ledger: only hooks and the CLI append to it, and they record its size after each append.

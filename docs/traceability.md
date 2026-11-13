@@ -17,12 +17,12 @@ Every decision in `docs/decisions.md` and how it is checked. Scenario IDs refer 
 | D11 | Git required for edits | D1 |
 | D12 | Class only goes up; scope limits | A5, B7 |
 | D13 | Sensitivity flags in any language | A4 |
-| D14 | Approval method by kind | B2, B3 |
-| D15 | Fallback in bypass/auto; headless denies | B3, B5 |
+| D14 | Approval method by kind (now D46) | B2, B3, B6 |
+| D15 | Headless denies (bypass/auto fallback replaced by D46) | B3, B5 |
 | D16 | Approval shows the exact action | B2 |
-| D17 | Expiry and HEAD binding | B2, B8 |
+| D17 | Expiry (requests 1 h, files 24 h, D46) | B6, B8 |
 | D18 | No blanket approvals | B2 |
-| D19 | Rejection memory | B6 |
+| D19 | Rejection memory (typed decisions only, D46) | B4 |
 | D20 | Three attempts, Fable only by human | C1 |
 | D21 | Failure labels | C2 |
 | D22 | Uncertainty as checks | D3 |
@@ -43,5 +43,12 @@ Every decision in `docs/decisions.md` and how it is checked. Scenario IDs refer 
 | D37 | Full change detection incl. gitignored protected files | A6, A7 |
 | D38 | Unknown commands need approval in high_risk | A8 |
 | D39 | Runs wherever Claude Code runs; view is read-only | E2, E3 |
+| D40 | Vendored js-yaml with checksum | Review: `plugin/scripts/vendor/README.md` |
+| D41 | Plugin source in `plugin/`, git | Review |
+| D42 | Version check; never log env; session start never blocks | B9, phase 1 unit tests |
+| D43 | MIT license | Review: `claude plugin validate --profile directory` |
+| D44 | Node kept; gate overhead ≤ 30 ms | `tools/measure-hook.js` |
+| D45 | Task profiles as JSON | Phase 2 unit tests |
+| D46 | Approvals through Claude Code's prompt; typed commands only for decisions, class, pause | B2–B8, B10, B11 |
 
 Every security decision (D4, D7, D9, D12, D14–D19, D24, D27, D29, D34–D38) has at least one running scenario, except D7, whose limits are stated rather than enforced.

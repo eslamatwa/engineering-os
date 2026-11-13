@@ -248,6 +248,10 @@ function cmdTask(args) {
     const tasks = core.listTasks(root);
     const want = args._[2];
     const shown = want ? tasks.filter((t) => t.task_id === want) : tasks.filter(core.isOpen);
+    const pend = require(path.join(__dirname, 'engos-approvals.js')).pending(root, null);
+    for (const p of pend) {
+      console.log('Waiting for approval: ' + p.approval_id + '  ' + p.action + (p.context && p.context.outgoing_commits && p.context.outgoing_commits.length ? '  (commits: ' + p.context.outgoing_commits.join('; ') + ')' : ''));
+    }
     if (!shown.length) { console.log(want ? 'No task ' + want + '.' : 'No open tasks.'); return; }
     for (const t of shown) {
       const o = t.observed || {};
@@ -255,7 +259,9 @@ function cmdTask(args) {
       if (want) {
         console.log('  files: ' + (o.files_count || 0) + ' (+' + (o.lines_added || 0) + ' -' + (o.lines_deleted || 0) + ' lines)' + (o.files_touched && o.files_touched.length ? ': ' + o.files_touched.join(', ') : ''));
         if (t.planned && t.planned.scope) console.log('  write scope: ' + (t.planned.scope.write || []).join(', '));
-        if (t.needs_human_reason) console.log('  needs human: ' + t.needs_human_reason);
+        if (t.needs_human_reason) console.log('  needs human: ' + t.needs_human_reason + ' (user types /engos:decide ' + t.task_id + ' accept|stop)');
+        const files = Object.keys(t.approved_files || {});
+        if (files.length) console.log('  protected files approved: ' + files.join(', '));
         const missing = R.missingRequirements(t);
         if (missing.length) console.log('  still needed: ' + missing.join('; '));
       }
@@ -280,7 +286,19 @@ function cmdTask(args) {
     console.log(id + ' closed.');
     return;
   }
-  fail('unknown task command "' + sub + '". Use open, status or close.');
+  if (sub === 'rearm') {
+    const id = args._[2];
+    if (!id) fail('task rearm needs a task id');
+    const profile = core.loadProfile(root, id);
+    if (!profile) fail('no task ' + id);
+    if (profile.status !== 'needs_human') fail(id + " isn't waiting for a decision.");
+    profile.needs_human_at = new Date().toISOString();
+    core.saveProfile(root, profile);
+    core.ledger(root, { type: 'decision.rearmed', actor: { kind: 'cli' }, task_id: id });
+    console.log(id + " is waiting for the user's decision again." + ' Ask them to type /engos:decide ' + id + ' accept or /engos:decide ' + id + ' stop.');
+    return;
+  }
+  fail('unknown task command "' + sub + '". Use open, status, close or rearm.');
 }
 
 const KINDS = ['question', 'analysis', 'docs', 'tests', 'bugfix', 'feature', 'refactor', 'debugging', 'security_review', 'architecture', 'migration'];

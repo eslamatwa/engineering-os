@@ -70,6 +70,7 @@ function edit(dir, rel, text, tool) {
   const t = tool || 'Write';
   const pre = hook('pre-tool-use', dir, { tool_name: t, tool_input: { file_path: path.join(dir, rel) } });
   if (pre.code !== 0) return { allowed: false, pre };
+  if (asks(pre)) return { allowed: false, asked: true, pre };
   write(dir, rel, text);
   const post = hook('post-tool-use', dir, { tool_name: t, tool_input: { file_path: path.join(dir, rel) } });
   return { allowed: true, pre, post };
@@ -79,9 +80,14 @@ function edit(dir, rel, text, tool) {
 function bash(dir, command) {
   const pre = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command } });
   if (pre.code !== 0) return { allowed: false, pre };
+  if (asks(pre)) return { allowed: false, asked: true, pre };
   cp.spawnSync(command, { cwd: dir, shell: true, encoding: 'utf8' });
   const post = hook('post-tool-use', dir, { tool_name: 'Bash', tool_input: { command } });
   return { allowed: true, pre, post };
+}
+
+function asks(r) {
+  return r.code === 0 && r.json && r.json.hookSpecificOutput && r.json.hookSpecificOutput.permissionDecision === 'ask';
 }
 
 function active(dir) {
@@ -144,12 +150,12 @@ test('A3: an edit to a protected path is blocked before it happens', () => {
   assert.strictEqual(t.effective.class, 'high_risk');
   assert.strictEqual(t.status, 'upgrade_pending');
 
-  // Even with a profile and plan, the protected file itself still needs approval (phase 3).
+  // With a profile and plan, the protected file itself asks the user (D46).
   cli(dir, ['profile', 'set', '--kind', 'bugfix']);
   cli(dir, ['plan', 'set', '--scope-write', 'src/auth/**']);
   const again = edit(dir, 'src/auth/session.ts', 'x\n', 'Edit');
-  assert.strictEqual(again.allowed, false);
-  assert.match(again.pre.stderr, /needs your scope approval/);
+  assert.strictEqual(again.asked, true);
+  assert.match(again.pre.json.hookSpecificOutput.permissionDecisionReason, /protected file/);
 });
 
 test('A4: a sensitivity flag in any language raises the class before any edit', () => {
@@ -193,7 +199,7 @@ test('A6: a script that rewrites a gitignored protected file is caught after the
   const b = bash(dir, 'node scripts/setup.js');
   assert.ok(b.allowed, b.pre && b.pre.stderr);
   assert.match(b.post.json.reason, /\.env/);
-  assert.match(b.post.json.reason, /needs a human decision/);
+  assert.match(b.post.json.reason, /needs the user's decision/);
   const t = active(dir);
   assert.strictEqual(t.status, 'needs_human');
   assert.strictEqual(edit(dir, 'utils/io.py', 'z\n').allowed, false, 'edits blocked until a human decides');
@@ -218,10 +224,12 @@ test('A8: unknown commands need approval in high_risk tasks unless listed as kno
   cli(dir, ['task', 'open', '--summary', 'migration']);
   cli(dir, ['profile', 'set', '--kind', 'migration', '--reversibility', 'hard']);
   assert.strictEqual(active(dir).effective.class, 'high_risk');
-  const p = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command: 'python migrate_helper.py' } });
-  assert.strictEqual(p.code, 2);
-  assert.match(p.stderr, /needs your approval/);
+  const early = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command: 'python migrate_helper.py' } });
+  assert.strictEqual(early.code, 2, 'without a plan the task is still waiting on its requirements');
   cli(dir, ['plan', 'set', '--scope-write', 'db/**']);
+  const p = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command: 'python migrate_helper.py' } });
+  assert.ok(asks(p), p.stderr);
+  assert.match(p.json.hookSpecificOutput.permissionDecisionReason, /being asked to allow/);
   const k = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command: 'npm run build' } });
   assert.strictEqual(k.code, 0, k.stderr);
 });
@@ -273,12 +281,11 @@ test('reads, checks and engos commands never open tasks', () => {
   assert.strictEqual(active(dir), null);
 });
 
-test('push, network and destructive commands need approval in any class', () => {
+test('push, network and destructive commands ask the user in any class', () => {
   const dir = project('approval');
   for (const cmd of ['git push origin main', 'curl https://example.com', 'rm -rf build', 'git reset --hard HEAD~1']) {
     const p = hook('pre-tool-use', dir, { tool_name: 'Bash', tool_input: { command: cmd } });
-    assert.strictEqual(p.code, 2, cmd);
-    assert.match(p.stderr, /needs your approval/);
+    assert.ok(asks(p), cmd + ': ' + p.stderr);
   }
 });
 

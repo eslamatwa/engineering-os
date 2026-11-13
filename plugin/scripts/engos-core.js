@@ -306,9 +306,10 @@ function loadBaseline(root, id) {
 function ratchet(root, profile, trigger, protectedPaths) {
   const R = require('./engos-rules.js');
   const r = R.recompute(profile, defaults().rules, protectedPaths);
+  // Keep the list of rules holding the class up to date, so a human lowering it can ignore all of them (D12).
+  if (r.cls === profile.effective.class || r.raised) profile.effective.floor_sources = r.sources;
   if (r.raised) {
     profile.effective.class = r.cls;
-    profile.effective.floor_sources = r.sources;
     profile.history.push({ at: new Date().toISOString(), from: r.from, to: r.cls, trigger });
     ledger(root, { type: 'class.changed', actor: { kind: 'hook' }, task_id: profile.task_id, from: r.from, to: r.cls, rule_id: r.sources.join(','), trigger });
   }

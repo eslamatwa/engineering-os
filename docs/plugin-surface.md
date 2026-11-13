@@ -36,14 +36,13 @@ A `CLAUDE.md` at the plugin root is not loaded as context, so lead guidance live
 | Command | Typed by | Does |
 | --- | --- | --- |
 | `/engos:init` | human | Creates `.engos/`, checks Node and git, asks which models the user has, offers deny rules and the status line for the project, adds gitignore entries |
-| `/engos:approve APR-xxxxxxxx` | human | Approves a pending request from this session |
-| `/engos:reject APR-xxxxxxxx` | human | Rejects it |
-| `/engos:decide DEC-xxx <option>` | human | Answers a handover |
+| `/engos:decide TASK-xxx accept|stop` | human | Answers a task that is waiting for a decision |
 | `/engos:class TASK-xxx <class>` | human | Lowers a class (hard gates stay) |
 | `/engos:pause` / `/engos:resume` | human | Turns ceremony off for this session; hard gates stay |
-| `/engos:status` | anyone | Prints current task, agents, attempts and pending approvals |
-| `/engos:view` | anyone | Opens the live graph page |
-| `/engos:task <summary>` | human or lead | Opens a task explicitly instead of waiting for the first edit |
+| `/engos:status` | anyone | Prints mode, open tasks and pending approvals |
+| `/engos:view` | anyone | Opens the live graph page (phase 6) |
+
+Approvals have no command: Claude Code's own Allow/Deny prompt asks the user (D46).
 
 ## Where it runs (D39)
 

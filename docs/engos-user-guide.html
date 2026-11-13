@@ -221,11 +221,15 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
       </div>
       <div class="panel">
         <h3 class="hot">What you'll see when it steps in</h3>
-<pre><span class="k">Edit blocked:</span> src/auth/session.ts is a
-protected path. This task is now high_risk.
-Approve editing these files for this task?
-  src/auth/session.ts
-Type: /engos:approve APR-3c91a0e2</pre>
+<pre><span class="d">● Update(src/auth/session.ts)</span>
+ Edit file
+ src/auth/session.ts
+  1 -export const timeout = 30;
+  1 +export const timeout = 60;
+ Do you want to make this edit?
+ ❯ 1. Yes
+   2. No</pre>
+        <p style="margin:10px 0 0;font-size:13px;color:var(--ink-2)">Claude Code's own prompt, shown the first time a protected file is edited in a task.</p>
       </div>
     </div>
     <p class="note">A task only closes when the required proof exists: checks run through <code>engos check</code> after the last edit, the changed files are inside the plan, and the remaining risk is written down. "It works" from the model is not proof.</p>
@@ -234,14 +238,14 @@ Type: /engos:approve APR-3c91a0e2</pre>
   <!-- 4 -->
   <section id="approve">
     <h2><span class="n">4.</span> When You're Asked to Approve</h2>
-    <p class="intro">Anything that leaves your machine or touches a protected folder waits for you. You always see the exact command, never a summary of it.</p>
+    <p class="intro">Anything that leaves your machine or touches a protected file waits for your click in Claude Code's own Allow/Deny prompt. You see the real command or file, never a summary, and the model can't click it for you.</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Kind</th><th>When</th><th>How you answer</th><th>Lasts</th></tr></thead>
         <tbody>
-          <tr><td>Single action</td><td>push, publish, network call, delete, unknown command in a high_risk task</td><td>Click Allow or Deny in Claude Code's own prompt</td><td>Once, 1 hour, dies on a new commit</td></tr>
-          <tr><td>Protected files</td><td>Editing a protected folder for one task</td><td>Type <code>/engos:approve APR-…</code></td><td>Until the task closes, max 24 hours</td></tr>
-          <tr><td>Decision</td><td>A task is blocked or there's a disagreement</td><td>Type <code>/engos:decide DEC-… &lt;option&gt;</code></td><td>That decision only</td></tr>
+          <tr><td>Single action</td><td>push, publish, network call, delete, unknown command in a high_risk task</td><td>Click Yes or No in the prompt</td><td>That one run; the next one asks again</td></tr>
+          <tr><td>Protected file</td><td>The first edit of each protected file in a task</td><td>Click Yes or No in the prompt</td><td>That file, until the task closes, max 24 hours</td></tr>
+          <tr><td>Decision</td><td>A command changed protected files without asking, so the task stopped</td><td>Type <code>/engos:decide TASK-… accept</code> or <code>stop</code></td><td>That decision only</td></tr>
         </tbody>
       </table>
     </div>
@@ -257,9 +261,9 @@ Type: /engos:approve APR-3c91a0e2</pre>
       <div class="panel">
         <h3>Good to know</h3>
         <ul class="dash">
-          <li>In bypass or auto permission mode the click prompt isn't trusted, so you'll be asked to type <code>/engos:approve</code> instead.</li>
-          <li>Type approvals in the same session that asked. An approval from another session, a script, or after the session was resumed doesn't count.</li>
-          <li>Deny something and it won't be asked again unchanged in the same task.</li>
+          <li>The prompt appears in every mode, including auto and bypass, even if your settings allow the command.</li>
+          <li>It shows the command itself. Extra context, like which commits a push sends, is in <code>/engos:status</code>.</li>
+          <li>Ordinary code files never ask. Most days you'll only be asked when you push.</li>
           <li>Running headless or in CI? Anything that needs approval is refused.</li>
         </ul>
       </div>
@@ -366,9 +370,7 @@ lead recommends  b</pre>
         <thead><tr><th>Command</th><th>Who</th><th>What it does</th></tr></thead>
         <tbody>
           <tr><td><code>/engos:init</code></td><td>you</td><td>Set up the current project</td></tr>
-          <tr><td><code>/engos:approve APR-…</code></td><td>you</td><td>Approve a pending request from this session</td></tr>
-          <tr><td><code>/engos:reject APR-…</code></td><td>you</td><td>Reject it</td></tr>
-          <tr><td><code>/engos:decide DEC-… x</code></td><td>you</td><td>Pick an option for a blocked task or dispute</td></tr>
+          <tr><td><code>/engos:decide TASK-… accept|stop</code></td><td>you</td><td>Decide on a task that stopped for you</td></tr>
           <tr><td><code>/engos:class TASK-… standard</code></td><td>you</td><td>Lower a task's class. Built-in safety rules stay.</td></tr>
           <tr><td><code>/engos:task &lt;summary&gt;</code></td><td>you or Claude</td><td>Open a task now instead of waiting for the first edit</td></tr>
           <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>you</td><td>Turn the extra process off or on for this session</td></tr>
@@ -438,9 +440,9 @@ lead recommends  b</pre>
         <tbody>
           <tr><td>Every edit is blocked</td><td>Node missing, Claude Code too old, or <code>.engos/config.yaml</code> broken. The session is in safe read-only mode.</td><td>Follow the message: install Node, update Claude Code, or fix the config.</td></tr>
           <tr><td>"Not a git repo"</td><td>Edits need git.</td><td>Run <code>git init</code> or accept it in <code>/engos:init</code>.</td></tr>
-          <tr><td>"Protected path"</td><td>The file matches a protected folder.</td><td>Approve the files for this task when asked.</td></tr>
+          <tr><td>"Protected path"</td><td>The file matches a protected folder.</td><td>Click Yes in the prompt when Claude edits it.</td></tr>
           <tr><td>"Outside the plan's scope"</td><td>The change touches files the plan didn't list.</td><td>Let Claude widen the scope (twice per task), or approve a decision.</td></tr>
-          <tr><td>My approval was ignored</td><td>Typed in another session, after a resume, or expired.</td><td>Approve again in the session that's asking.</td></tr>
+          <tr><td>My decision was ignored</td><td>Typed in another session, or after the session was resumed.</td><td>Ask Claude to run <code>engos task rearm TASK-…</code>, then type the decision again in this session.</td></tr>
           <tr><td>Tests passed but the task won't close</td><td>They weren't run through <code>engos check</code>, or ran before the last edit.</td><td>Ask Claude to run <code>engos check test</code> again.</td></tr>
           <tr><td>No status line in the Desktop app</td><td>The status line may be terminal-only.</td><td>Use <code>/engos:view</code>; it opens beside the chat.</td></tr>
           <tr><td>It keeps asking about a command</td><td>Unknown commands need approval in high_risk tasks.</td><td>Add it to <code>known_commands</code>.</td></tr>

@@ -69,69 +69,52 @@
   "approvals": {
     "only_from": "human",
     "request_written_by": "gate",
-    "id_format": "APR-<first 8 hex of action hash>",
-    "hash_binds": [
-      "tool_name",
-      "normalized_input",
-      "cwd",
-      "task_id",
-      "git_head",
-      "git_branch",
-      "script_sha256_if_local_script"
-    ],
-    "show_to_user": "exact_action_plus_context",
-    "context_by_kind": {
-      "push": [
+    "records": ".engos/approvals/APR-xxxxxxxx.json",
+    "native_prompt": {
+      "used_for": [
+        "vcs_remote",
+        "network",
+        "destructive",
+        "unknown_in_high_risk",
+        "protected_file_first_edit_in_task"
+      ],
+      "modes": [
+        "default",
+        "acceptEdits",
+        "auto",
+        "bypassPermissions"
+      ],
+      "shows": "real_action",
+      "granted_when": "tool_ran",
+      "no_is_invisible": true
+    },
+    "actions": {
+      "every_execution_asks": true,
+      "context_recorded": [
         "branch",
-        "outgoing_commits"
-      ],
-      "scope": [
-        "file_list",
-        "task_reason"
-      ],
-      "delete": [
-        "files_to_remove"
+        "outgoing_commits",
+        "after_push_head"
       ]
     },
-    "kinds": {
-      "action": {
-        "covers": "one push, publish, network call, destructive command or external MCP call",
-        "method": "native_permission_prompt",
-        "single_use": true,
-        "expires_after": "1h",
-        "void_on": "new_commit"
-      },
-      "scope": {
-        "covers": "editing listed high_risk paths for one task",
-        "method": "typed_command",
-        "expires": "on_task_close",
-        "max_lifetime": "24h"
-      },
-      "decision": {
-        "covers": "blocked task, dispute, detected violation, high_risk amendment",
-        "method": "typed_command"
-      }
+    "protected_files": {
+      "approval": "per_file_per_task",
+      "max_lifetime": "24h"
     },
-    "fallback": {
-      "when_permission_mode_in": [
-        "bypassPermissions",
-        "auto"
-      ],
-      "use": "typed_command"
-    },
-    "headless": "deny_all_requiring_approval",
+    "request_ttl": "1h",
+    "headless": "denied_by_platform",
     "blanket_approvals": false,
-    "rejection": {
-      "recorded": true,
-      "same_hash_again_in_task": "deny"
-    },
-    "capture": {
+    "typed_commands": [
+      "/engos:decide TASK-xxx accept|stop",
+      "/engos:class TASK-xxx <lower class>",
+      "/engos:pause",
+      "/engos:resume"
+    ],
+    "typed_capture": {
       "hook": "UserPromptExpansion",
       "match": "whole_line",
-      "require_same_session_id": true,
+      "require_same_session_as_task": true,
       "void_if_session_resumed_or_forked_after_request": true,
-      "require_pending_request": true,
-      "reject_if_expired": true
+      "rearm": "engos task rearm TASK-xxx"
     }
   },
   "pause": {

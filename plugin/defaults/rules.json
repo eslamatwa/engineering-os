@@ -363,6 +363,10 @@
     },
     "read": {
       "commands": [
+        "cd",
+        "pushd",
+        "popd",
+        "export",
         "ls",
         "dir",
         "cat",

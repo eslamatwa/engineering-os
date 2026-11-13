@@ -28,46 +28,36 @@ hard_gates:                            # cannot be lowered by human command, pro
   - { id: G-self, when: "bash class self_protect (includes running claude, D34)", require: deny }
   - { id: G-prod, when: "deploy to production", require: deny }       # v0.1 never deploys to production
 
-approvals:
+approvals:                             # D46 (supersedes the typed-approval parts of D14-D17, D19)
   only_from: human                     # D4
   request_written_by: gate             # from the real tool input, never by the model
-  id_format: "APR-<first 8 hex of action hash>"
-  hash_binds: [tool_name, normalized_input, cwd, task_id, git_head, git_branch, script_sha256_if_local_script]
-  show_to_user: exact_action_plus_context   # D16
-  context_by_kind:
-    push: [branch, outgoing_commits]
-    scope: [file_list, task_reason]
-    delete: [files_to_remove]
-  kinds:                               # D14, D17
-    action:
-      covers: "one push, publish, network call, destructive command or external MCP call"
-      method: native_permission_prompt
-      single_use: true
-      expires_after: 1h
-      void_on: new_commit
-    scope:
-      covers: "editing listed high_risk paths for one task"
-      method: typed_command            # /engos:approve APR-xxxxxxxx
-      expires: on_task_close
-      max_lifetime: 24h
-    decision:
-      covers: "blocked task, dispute, detected violation, high_risk amendment"
-      method: typed_command            # /engos:decide DEC-xxx <option>
-  fallback:                            # D15
-    when_permission_mode_in: [bypassPermissions, auto]
-    use: typed_command
-  headless: deny_all_requiring_approval
+  records: .engos/approvals/APR-xxxxxxxx.json   # one per request; hooks only; fingerprints in sessions/approvals.index.json
+  native_prompt:                       # Claude Code's own Allow/Deny prompt, via a hook "ask"
+    used_for: [vcs_remote, network, destructive, unknown_in_high_risk, protected_file_first_edit_in_task]
+    modes: [default, acceptEdits, auto, bypassPermissions]   # verified in spike round 3
+    shows: real_action                 # the prompt can't show extra context
+    granted_when: tool_ran             # PostToolUse after an ask = the person clicked Allow
+    no_is_invisible: true              # a "No" fires no hook; the request just expires
+  actions:
+    every_execution_asks: true         # single-use by nature; no hash expiry or HEAD binding needed
+    context_recorded: [branch, outgoing_commits, after_push_head]   # shown in /engos:status and the live view
+  protected_files:
+    approval: per_file_per_task
+    max_lifetime: 24h
+  request_ttl: 1h                      # an unanswered request expires
+  headless: denied_by_platform         # "ask" with nobody present is a denial (spike P3)
   blanket_approvals: false             # D18
-  rejection:                           # D19
-    recorded: true
-    same_hash_again_in_task: deny
-  capture:                             # D34
+  typed_commands:                      # the only things a person types
+    - "/engos:decide TASK-xxx accept|stop"            # task waiting for a decision (needs_human)
+    - "/engos:class TASK-xxx <lower class>"           # D12
+    - "/engos:pause"
+    - "/engos:resume"
+  typed_capture:                       # D34, D35
     hook: UserPromptExpansion
-    match: whole_line                  # ^/engos:approve APR-[0-9a-f]{8}$
-    require_same_session_id: true
-    void_if_session_resumed_or_forked_after_request: true   # D35
-    require_pending_request: true
-    reject_if_expired: true
+    match: whole_line
+    require_same_session_as_task: true
+    void_if_session_resumed_or_forked_after_request: true
+    rearm: "engos task rearm TASK-xxx" # re-requests a decision after a legitimate resume
 
 pause:                                 # D29
   command: /engos:pause

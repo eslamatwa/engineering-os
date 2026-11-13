@@ -266,6 +266,11 @@ function recompute(profile, rules, protectedPaths) {
   if ((observed.modules || []).length >= 3) floors.push({ cls: 'standard', rule: 'F-multi-module' });
   if (observed.pkg_install) floors.push({ cls: 'standard', rule: 'F-pkg-install' });
 
+  // A class the human lowered (D12) ignores the floors that were active when they lowered it;
+  // new signals can still raise it.
+  const ignore = new Set((profile.human_override && profile.human_override.ignore_floors) || []);
+  for (let i = floors.length - 1; i >= 0; i--) if (ignore.has(floors[i].rule)) floors.splice(i, 1);
+
   let cls = prev;
   const sources = [];
   for (const f of floors) {

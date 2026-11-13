@@ -308,7 +308,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
       <div class="rung"><b>question</b><span>No record, no ceremony. Reading is free.</span></div>
       <div class="rung"><b>trivial_edit</b><span>Opened automatically on the first edit. Lead does it. Small budget.</span></div>
       <div class="rung"><b>standard</b><span>Profile, plan, worker, checks recorded by code.</span></div>
-      <div class="rung"><b>high_risk</b><span>Scope approval, stronger validator, human settles disputes.</span></div>
+      <div class="rung"><b>high_risk</b><span>Your click for each protected file, stronger validator, human settles disputes.</span></div>
     </div>
     <div class="grid2" style="margin-top:16px">
       <div class="panel">
@@ -404,51 +404,48 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
   <!-- 8 -->
   <section>
     <h2><span class="n">8.</span> Approvals</h2>
-    <p class="intro">The model can ask. Only the human can answer, and the human sees the real action, not the model's description of it.</p>
+    <p class="intro">The model can ask. Only the human can answer, with a click in Claude Code's own Allow/Deny prompt, which shows the real action. <span class="tag ok">agreed · D46 · built in phase 3</span></p>
     <div class="grid2">
       <div class="panel">
         <h3>Sequence</h3>
         <ol class="seq">
-          <li><span class="tag model">model</span><span>Tries <code>git push origin release/1.2</code>.</span></li>
-          <li><span class="tag code">gate</span><span>Blocks it and writes the request from the real tool input. ID comes from the hash.</span></li>
-          <li><span class="tag code">gate</span><span>Shows the exact command to the user directly.</span></li>
-          <li><span class="tag human">human</span><span>Approves or rejects.</span></li>
-          <li><span class="tag code">hook</span><span>Records the decision and a ledger line.</span></li>
-          <li><span class="tag code">gate</span><span>On retry, matches the hash, allows once, marks it used.</span></li>
+          <li><span class="tag model">model</span><span>Tries <code>git push origin fix/session</code>.</span></li>
+          <li><span class="tag code">gate</span><span>Writes a request from the real tool input, with branch and outgoing commits, and returns <code>ask</code>.</span></li>
+          <li><span class="tag human">human</span><span>Sees the exact command in Claude Code's prompt and clicks Yes or No.</span></li>
+          <li><span class="tag code">hook</span><span>The command ran, so it was allowed: the record becomes <code>approved</code> by <code>human</code>, with the commit actually pushed.</span></li>
+          <li><span class="tag code">gate</span><span>The next push asks again.</span></li>
         </ol>
       </div>
       <div class="panel">
         <h3 class="hot">Approval record</h3>
-<pre><span class="k">approval_id:</span> APR-9f2c41d7
-<span class="k">task_id:</span> TASK-012
-<span class="k">action:</span> "git push origin release/1.2"
-<span class="k">bound_to:</span>
-  head: 4e1a9c0
-  branch: release/1.2
-<span class="k">risk:</span> external_side_effect
+<pre><span class="k">approval_id:</span> APR-afc3aa21
+<span class="k">kind:</span> action
+<span class="k">action:</span> "git push -u origin fix/session"
+<span class="k">command_class:</span> vcs_remote
+<span class="k">task_id:</span> TASK-001
+<span class="k">context:</span> { branch: main, outgoing_commits: [...] }
 <span class="k">decision:</span> approved
 <span class="k">decided_by:</span> human   <span class="c"># set by the hook</span>
-<span class="k">decided_at:</span> 2026-11-13T10:06:00Z
-<span class="k">single_use:</span> true
-<span class="k">expires_at:</span> 2026-11-13T11:06:00Z</pre>
+<span class="k">method:</span> native_prompt
+<span class="k">context_after:</span> { head: d7701ec }</pre>
       </div>
     </div>
     <div class="tbl" style="margin-top:16px">
       <table>
         <thead><tr><th>Kind</th><th>Covers</th><th>How the human answers</th><th>Valid for</th></tr></thead>
         <tbody>
-          <tr><td>Action approval</td><td>One push, publish, network call or destructive command</td><td>Native permission prompt, recorded by hook</td><td>Once, 1 hour, current HEAD only</td></tr>
-          <tr><td>Scope approval</td><td>Editing listed protected paths for one task</td><td>Typed <code>/engos:approve APR-…</code></td><td>Until the task closes, max 24 hours</td></tr>
-          <tr><td>Decision</td><td>Blocked task, dispute, detected violation</td><td>Typed choice from a handover with options</td><td>That decision only</td></tr>
+          <tr><td>Action</td><td>Push, publish, network, destructive, unknown command in a high_risk task</td><td>Yes / No in Claude Code's prompt</td><td>That one run; the next asks again</td></tr>
+          <tr><td>Protected file</td><td>First edit of each protected file in a task</td><td>Yes / No in Claude Code's prompt</td><td>That file, until the task closes, max 24 hours</td></tr>
+          <tr><td>Decision</td><td>A command changed protected files without approval</td><td>Typed <code>/engos:decide TASK-… accept|stop</code></td><td>That decision only</td></tr>
         </tbody>
       </table>
     </div>
     <div class="grid3" style="margin-top:16px">
-      <div class="panel"><h3>Fallback <span class="tag ok">agreed</span></h3><p>In bypass or auto mode the native prompt isn't trusted: the gate asks for the typed command. Headless or CI: anything that needs approval is denied.</p></div>
-      <div class="panel"><h3>No blanket approvals <span class="tag ok">agreed</span></h3><p>No "approve every push in this task" in v0.1. Each external action gets its own answer.</p></div>
-      <div class="panel"><h3>Rejections <span class="tag ok">agreed</span></h3><p>Recorded and reported. The identical action can't be asked again in the same task; a changed one can.</p></div>
+      <div class="panel"><h3>Every mode <span class="tag ok">verified</span></h3><p>The prompt appears in default, auto and bypass, even when a settings rule allows the command. Headless turns it into a denial.</p></div>
+      <div class="panel"><h3>No blanket approvals <span class="tag ok">agreed</span></h3><p>No "approve every push in this task" in v0.1. Each external action gets its own click.</p></div>
+      <div class="panel"><h3>Records can't be forged <span class="tag ok">built</span></h3><p>Hooks keep a fingerprint of every approval record. A record written or changed by anything else stops the task.</p></div>
     </div>
-    <p class="note">Spike finding: a script running <code>claude -p "/engos:approve …"</code> fires the same hooks as a typed command. So typed approvals count only from the session that made the request, and Bash may never run <code>claude</code> (D34). Round 2 showed <code>--resume</code> keeps the session id, so an approval is also void if the session was resumed or forked after the request (D35). <span class="tag ok">agreed</span></p>
+    <p class="note">Typed commands remain only for decisions, lowering a class and pause. A script can fake a typed command (spike R8) and <code>--resume</code> keeps the session id (P9), so they count only from the task's own session, not after it was resumed, and Bash may never run <code>claude</code> (D34, D35).</p>
   </section>
 
   <!-- 9 -->
@@ -561,5 +558,5 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     </ul>
   </div>
 
-  <footer>Claude Engineering OS · architecture draft v0.1.8 · decisions D1–D39 in docs/decisions.md · spec in config/ and docs/</footer>
+  <footer>Claude Engineering OS · architecture draft v0.1.9 · decisions D1–D46 in docs/decisions.md · spec in config/ and docs/</footer>
 </div>

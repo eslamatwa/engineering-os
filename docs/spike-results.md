@@ -63,10 +63,23 @@ Run 2026-11-13 after the owner logged the bundled CLI in. Control run C0 (loggin
 1. **Approval after resume is void.** The approval hook refuses a typed approval if a `SessionStart` with `source: resume` or `fork` happened for that session after the request was created. A real user who restarts and resumes just gets asked again. Cost: one ledger lookup.
 2. **Checks run through the CLI.** Configured checks run as `engos check <name>`, which runs the exact configured command and records the exit code itself. Evidence no longer depends on how the model typed the command.
 
-## Round 3: needs a person (pending)
+## Round 3: with the owner, interactive (2026-11-13)
 
-| # | Question | Affects |
-| --- | --- | --- |
-| H1 | Native prompt from a hook `ask` in an interactive session, in default and bypass modes | D14, D15 |
-| H2 | Can a project-level status line show live task data? Check in the terminal and in the Desktop Code tab (D39). | D33 |
-| H3 | Does a plugin with hooks load in Claude Code on the web? | D39 |
+Throwaway Claude Code 2.1.321 sessions (Haiku) in `tests/.tmp/r3/` with a hook that returns `ask` for Write and `git push`, and a status line script.
+
+| # | Question | Result | Affects |
+| --- | --- | --- | --- |
+| H1a | Hook `ask`, session started without a mode flag | The session's default mode was **auto** (Claude Code's new default, shown as a notice). The Allow/Deny prompt still appeared. | D46 |
+| H1b | Hook `ask` vs a settings `allow: [Write]` rule | **Prompt appeared**; the hook wins over the allow rule. | D46 |
+| H1c | Hook `ask` in `bypassPermissions` | **Prompt appeared.** | D46, supersedes D15 fallback |
+| H1d | Does the prompt show the hook's reason text? | **No.** It shows the real action: file name and content for Write. | D16 → D46 |
+| H1e | Does a `systemMessage` from the same hook show next to the prompt? | **No**, not before the prompt. | D46 |
+| H1f | Allow → does the action run? | **Yes**, `a.txt` created with the expected content. | D46 |
+| H2 | Status line from settings in the terminal | **Shown** at the bottom (owner confirmed). The script receives session id, model, workspace and effort as JSON. | D33 |
+| H2b | Status line in the Desktop app's Code tab | Not tested yet. | D33 |
+| H3 | Plugins with hooks on Claude Code on the web | Not tested yet. | D39 |
+
+### What this changes
+
+- D46 replaces typed approvals with the native prompt for actions and protected files.
+- Context for an approval (outgoing commits, file list) can't go inside the prompt; it is recorded and shown in `/engos:status` and the live view.

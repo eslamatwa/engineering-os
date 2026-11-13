@@ -220,11 +220,15 @@ footer a, .langlink a { color: var(--accent); }
       </div>
       <div class="panel">
         <h3 class="hot">ما الذي تراه عندما يتدخل</h3>
-<pre><span class="k">Edit blocked:</span> src/auth/session.ts is a
-protected path. This task is now high_risk.
-Approve editing these files for this task?
-  src/auth/session.ts
-Type: /engos:approve APR-3c91a0e2</pre>
+<pre><span class="d">● Update(src/auth/session.ts)</span>
+ Edit file
+ src/auth/session.ts
+  1 -export const timeout = 30;
+  1 +export const timeout = 60;
+ Do you want to make this edit?
+ ❯ 1. Yes
+   2. No</pre>
+        <p class="cap">نافذة Claude Code نفسها، تظهر أول مرة يُعدَّل فيها ملف محمي داخل المهمة.</p>
       </div>
     </div>
     <p class="note">لا تُغلق المهمة إلا بوجود الدليل المطلوب: فحوصات شُغّلت عبر <code>engos check</code> بعد آخر تعديل، وملفات متغيرة داخل الخطة، ومخاطر متبقية مكتوبة. قول النموذج «إنه يعمل» ليس دليلًا.</p>
@@ -233,14 +237,14 @@ Type: /engos:approve APR-3c91a0e2</pre>
   <!-- 4 -->
   <section id="approve">
     <h2><span class="n">٤.</span> عندما يُطلب منك الموافقة</h2>
-    <p class="intro">كل ما يغادر جهازك أو يلمس مجلدًا محميًا ينتظرك. ترى دائمًا الأمر الحرفي، لا ملخصًا عنه.</p>
+    <p class="intro">كل ما يغادر جهازك أو يلمس ملفًا محميًا ينتظر ضغطتك في نافذة السماح والرفض الخاصة بـ Claude Code نفسها. ترى الأمر أو الملف الحقيقي، لا ملخصًا عنه، ولا يستطيع النموذج الضغط بدلًا منك.</p>
     <div class="tbl">
       <table>
         <thead><tr><th>النوع</th><th>متى</th><th>كيف ترد</th><th>المدة</th></tr></thead>
         <tbody>
-          <tr><td>إجراء واحد</td><td>push، أو نشر، أو اتصال شبكي، أو حذف، أو أمر غير معروف في مهمة high_risk</td><td>اضغط Allow أو Deny في نافذة Claude Code نفسها</td><td>مرة واحدة، ساعة، وتسقط مع أي commit جديد</td></tr>
-          <tr><td>ملفات محمية</td><td>تعديل مجلد محمي لمهمة واحدة</td><td>اكتب <code>/engos:approve APR-…</code></td><td>حتى إغلاق المهمة، و24 ساعة كحد أقصى</td></tr>
-          <tr><td>قرار</td><td>مهمة متوقفة أو خلاف</td><td>اكتب <code>/engos:decide DEC-… &lt;option&gt;</code></td><td>لهذا القرار فقط</td></tr>
+          <tr><td>إجراء واحد</td><td>push، أو نشر، أو اتصال شبكي، أو حذف، أو أمر غير معروف في مهمة high_risk</td><td>اضغط Yes أو No في النافذة</td><td>هذه المرة فقط؛ المرة التالية تسألك من جديد</td></tr>
+          <tr><td>ملف محمي</td><td>أول تعديل لكل ملف محمي داخل المهمة</td><td>اضغط Yes أو No في النافذة</td><td>هذا الملف حتى إغلاق المهمة، و24 ساعة كحد أقصى</td></tr>
+          <tr><td>قرار</td><td>أمر غيّر ملفات محمية دون أن يسأل، فتوقفت المهمة</td><td>اكتب <code>/engos:decide TASK-… accept</code> أو <code>stop</code></td><td>لهذا القرار فقط</td></tr>
         </tbody>
       </table>
     </div>
@@ -256,9 +260,9 @@ Type: /engos:approve APR-3c91a0e2</pre>
       <div class="panel">
         <h3>معلومات مهمة</h3>
         <ul class="dash">
-          <li>في وضعَي bypass وauto لا يُعتمد على نافذة الضغط، فسيُطلب منك كتابة <code>/engos:approve</code> بدلًا منها.</li>
-          <li>اكتب الموافقة في نفس الجلسة التي طلبتها. الموافقة من جلسة أخرى، أو من سكريبت، أو بعد استئناف الجلسة لا تُحسب.</li>
-          <li>إذا رفضت شيئًا فلن يُطلب منك مرة أخرى بنفس الشكل في نفس المهمة.</li>
+          <li>تظهر النافذة في كل الأوضاع، بما فيها auto وbypass، حتى لو كانت إعداداتك تسمح بالأمر.</li>
+          <li>تعرض الأمر نفسه. السياق الإضافي، مثل الـ commits التي سيرسلها الـ push، موجود في <code>/engos:status</code>.</li>
+          <li>ملفات الكود العادية لا تسأل أبدًا. في أغلب الأيام لن يسألك إلا عند الـ push.</li>
           <li>تعمل بلا واجهة أو في CI؟ كل ما يحتاج موافقة يُرفض.</li>
         </ul>
       </div>
@@ -365,9 +369,7 @@ lead recommends  b</pre>
         <thead><tr><th>الأمر</th><th>من</th><th>ماذا يفعل</th></tr></thead>
         <tbody>
           <tr><td><code>/engos:init</code></td><td>أنت</td><td>تجهيز المشروع الحالي</td></tr>
-          <tr><td><code>/engos:approve APR-…</code></td><td>أنت</td><td>الموافقة على طلب منتظر من هذه الجلسة</td></tr>
-          <tr><td><code>/engos:reject APR-…</code></td><td>أنت</td><td>رفضه</td></tr>
-          <tr><td><code>/engos:decide DEC-… x</code></td><td>أنت</td><td>اختيار خيار لمهمة متوقفة أو خلاف</td></tr>
+          <tr><td><code>/engos:decide TASK-… accept|stop</code></td><td>أنت</td><td>القرار في مهمة توقفت تنتظرك</td></tr>
           <tr><td><code>/engos:class TASK-… standard</code></td><td>أنت</td><td>خفض درجة مهمة. قواعد الأمان المدمجة تبقى.</td></tr>
           <tr><td><code>/engos:task &lt;summary&gt;</code></td><td>أنت أو Claude</td><td>فتح مهمة الآن بدل انتظار أول تعديل</td></tr>
           <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>أنت</td><td>إيقاف الإجراءات الإضافية أو تشغيلها لهذه الجلسة</td></tr>
@@ -437,9 +439,9 @@ lead recommends  b</pre>
         <tbody>
           <tr><td>كل التعديلات ممنوعة</td><td>Node غير موجود، أو Claude Code قديم، أو <code>.engos/config.yaml</code> تالف. الجلسة في وضع القراءة فقط الآمن.</td><td>اتبع الرسالة: ثبّت Node، أو حدّث Claude Code، أو أصلح الإعدادات.</td></tr>
           <tr><td>«ليس مستودع git»</td><td>التعديل يحتاج git.</td><td>شغّل <code>git init</code> أو وافق عليه في <code>/engos:init</code>.</td></tr>
-          <tr><td>«مسار محمي»</td><td>الملف داخل مجلد محمي.</td><td>وافق على الملفات لهذه المهمة عندما يُطلب منك.</td></tr>
+          <tr><td>«مسار محمي»</td><td>الملف داخل مجلد محمي.</td><td>اضغط Yes في النافذة عندما يعدّله Claude.</td></tr>
           <tr><td>«خارج نطاق الخطة»</td><td>التغيير يلمس ملفات لم تذكرها الخطة.</td><td>اترك Claude يوسّع النطاق (مرتين لكل مهمة)، أو وافق على قرار.</td></tr>
-          <tr><td>موافقتي تم تجاهلها</td><td>كُتبت في جلسة أخرى، أو بعد استئناف الجلسة، أو انتهت صلاحيتها.</td><td>وافق مرة أخرى في الجلسة التي تطلب.</td></tr>
+          <tr><td>قراري تم تجاهله</td><td>كُتب في جلسة أخرى، أو بعد استئناف الجلسة.</td><td>اطلب من Claude تشغيل <code>engos task rearm TASK-…</code>، ثم اكتب القرار مرة أخرى في هذه الجلسة.</td></tr>
           <tr><td>الاختبارات نجحت لكن المهمة لا تُغلق</td><td>لم تُشغّل عبر <code>engos check</code>، أو شُغّلت قبل آخر تعديل.</td><td>اطلب من Claude تشغيل <code>engos check test</code> مرة أخرى.</td></tr>
           <tr><td>لا يظهر سطر الحالة في تطبيق Desktop</td><td>قد يكون سطر الحالة خاصًا بالطرفية.</td><td>استخدم <code>/engos:view</code>، فهو يفتح بجانب المحادثة.</td></tr>
           <tr><td>يسألني عن أمر باستمرار</td><td>الأوامر غير المعروفة تحتاج موافقة في مهام high_risk.</td><td>أضفه إلى <code>known_commands</code>.</td></tr>

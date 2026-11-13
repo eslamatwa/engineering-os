@@ -2,7 +2,7 @@
 
 A Claude Code plugin that catches mistakes before they land. It classifies each request from what the code actually touches, routes every step to the right Claude model, blocks what policy forbids, asks you before anything leaves your machine, and accepts nothing as done without recorded evidence.
 
-**Status:** build phases 1 (skeleton) and 2 (gate and fast path) done; phases 3–7 to go. Platform spike round 3 (needs a person) pending. See `docs/build-plan.md` and `docs/phase-results.md`.
+**Status:** build phases 1–3 (skeleton, gate, approvals) done; phases 4–7 to go. Platform spike rounds 1–3 done (Desktop status line and web still to check). See `docs/build-plan.md` and `docs/phase-results.md`.
 
 ## What it protects against
 
@@ -13,7 +13,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 - **Small work stays cheap.** Reading is free. A small edit opens a lightweight task automatically; the main session does it itself.
 - **The class only goes up.** It is raised by what the code observes (protected paths, diff size, risky commands) and by sensitivity the model reads in your request, in any language.
 - **Routing is written down.** Haiku for search and logs, Sonnet for scoped work, Opus for features and security, Fable for architecture, and only after you say yes.
-- **You approve what leaves the repo.** Push, publish, network and destructive commands show the exact command and need your answer. Approvals are recorded, single-use and expire.
+- **You approve what leaves the repo.** Push, publish, network and destructive commands, and the first edit of each protected file, ask you through Claude Code's own Allow/Deny prompt. Every approval is recorded.
 - **Evidence, not narration.** Checks run through `engos check`, which records the real exit code. A task closes only when the required evidence exists.
 - **You can always see the agents.** Status line, a live graph (`/engos:view`) and `/engos:status`.
 
@@ -21,7 +21,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D45). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D46). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |

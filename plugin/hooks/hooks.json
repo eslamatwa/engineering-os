@@ -1,5 +1,5 @@
 {
-  "description": "Engineering OS hooks. Phase 2: session self-check, write and Bash gates, change observer. See docs/hooks.md.",
+  "description": "Engineering OS hooks. Phase 3: session self-check, write and Bash gates with approvals through Claude Code's prompt, change observer, typed human commands. See docs/hooks.md.",
   "hooks": {
     "SessionStart": [
       {
@@ -34,6 +34,18 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" post-tool-use",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" prompt-expansion",
+            "timeout": 15,
+            "onFailure": "block"
           }
         ]
       }

@@ -129,3 +129,61 @@ Gate overhead over Node start-up (p95): Write 10 ms, Bash 21 ms, inside the D44 
 - Requests and approvals for protected scope, push, network, destructive and high_risk unknown commands: phase 3. Until then they are blocked.
 - Typed `/engos:class` to lower a class, and resolving `needs_human`: phase 3 (they must come from the human).
 - Lead integration budget in standard tasks (H3 rule 6) and the Agent gate: phase 5, when workers exist.
+
+## Phase 3 · Approvals (2026-11-13)
+
+**Status:** done. Design changed during the phase by D46, after spike round 3 showed Claude Code's own Allow/Deny prompt works in every interactive mode.
+
+### What was built
+
+| File | What |
+| --- | --- |
+| `plugin/scripts/engos-approvals.js` | Requests from the real tool input, a unique ID per request, grant on PostToolUse, 1-hour request expiry, per-file approvals (24 hours), fingerprints of every record, context (branch, outgoing commits, commit actually pushed) |
+| `plugin/scripts/engos-hook.js` | `ask` for push, network, destructive, high_risk unknown commands and the first edit of each protected file; grants recorded after the tool ran; approved commands may change protected files; `/engos:decide`, `/engos:class`, `/engos:pause`, `/engos:resume` captured from UserPromptExpansion with the D34/D35 checks; pause keeps hard gates; refusals now include commands ready to run; repeated session warnings shown at most once a week |
+| `plugin/scripts/engos-observe.js` | Approval records written by hooks are recognised by fingerprint; anything else is a violation |
+| `plugin/scripts/engos-rules.js` | A class the human lowered ignores the floors that held it up |
+| `plugin/scripts/engos-cli.js` | `task rearm`; `task status` lists pending approvals with their commits and approved protected files |
+| `plugin/commands/` | `decide.md`, `class.md`, `pause.md`, `resume.md` |
+| `config/rules.yaml` | `cd`, `pushd`, `popd`, `export` count as safe (found in the live test) |
+| `config/policies.yaml` | Approvals section rewritten for D46 |
+| `tests/unit/phase3.test.js` | 13 tests |
+
+### Exit scenarios (unit)
+
+| Scenario | Result |
+| --- | --- |
+| B2 push asks, records branch and outgoing commits, approved only after it ran, asks again next time, first record kept | Pass |
+| B4 typed decision from another session refused (D34); `claude` blocked | Pass |
+| B4b decision after a resume refused; accepted after `engos task rearm` (D35) | Pass |
+| B6 protected file asks once per file per task; another protected file asks; ordinary files never ask; asks again after 24 hours | Pass |
+| B7 pause: no tasks or budgets; push and protected files still ask; never paths and `claude` still blocked; new session unpaused | Pass |
+| B8 unanswered request expires and can't be granted later | Pass |
+| B10 forged approval record caught by fingerprint | Pass |
+| B11 approved `rm -rf migrations` recorded as changed under approval, not a violation | Pass |
+| `/engos:decide` accept and stop, invalid options, whole-line match only; `/engos:class` lowers and can't raise | Pass |
+
+All unit tests: 43 of 43 (`node --test tests/unit/phase1.test.js tests/unit/phase2.test.js tests/unit/phase3.test.js`).
+
+Bugs found and fixed during the phase:
+- The observer flagged the hooks' own approval records as tampering (unit test B2). Fixed with fingerprints.
+- Two requests for the same action shared an ID, so a new request overwrote the approved record. Fixed with a unique ID per request.
+- A class the human lowered rose again at once, because the floors list was only saved when the class rose. Fixed.
+
+### Live test with the owner (interactive Claude Code 2.1.321, Haiku, auto mode, `--plugin-dir`)
+
+Request: "Change the timeout in src/auth/session.ts from 30 to 60", then "Commit this change and push it", then `/engos:status`.
+
+| Step | What happened |
+| --- | --- |
+| First edit | Blocked: protected path, high_risk task, needs profile and plan. |
+| Claude's first try to fix it | `cd ... && engos profile set --help` was refused because `cd` counted as an unknown command while the task waited for its plan. **Bug, fixed live:** `cd` and similar are safe, and refusals now carry ready-to-run commands. |
+| After the fix | Claude ran `engos profile set` and `engos plan set` by itself. |
+| Edit again | **Allow/Deny prompt appeared; owner clicked Yes.** Record `APR-a912cf5d`: kind file, approved, human. |
+| Commit and push | Commit ran without asking. **The push asked; owner clicked Yes.** Record `APR-afc3aa21`: kind action, vcs_remote, approved, human. The branch reached the local remote. |
+| `/engos:status` | Mode normal, TASK-001 open, high_risk. |
+
+Ledger order: refused (protected) → refused (requirements) → profile → plan → file request → file granted → push request → push granted.
+
+Finding: when commit and push run in one command, the outgoing commits don't exist yet when the request is written. The record now also stores the commit actually pushed, after the push.
+
+Also seen: the session-start hook couldn't read the Claude Code version in a session started from the terminal, while `engos doctor` run from Claude's Bash could. The warning is now shown at most once a week; finding a reliable version source is left for phase 7.

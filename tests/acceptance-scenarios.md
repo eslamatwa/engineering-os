@@ -53,49 +53,52 @@ Default setup unless stated: a git repo with `.engos/` from `/engos:init`, `chec
 - **When** any Edit is attempted.
 - **Then** the call is blocked with install instructions. (Mechanism verified in spike R5.)
 
-### B2 · Push needs an approval with the exact action
-- **Given** a task with 2 local commits.
+### B2 · Push asks through Claude Code's own prompt, every time (D46)
+- **Given** a task with local commits.
 - **When** the lead runs `git push origin fix/x`.
-- **Then** the native prompt shows the exact command, branch and both commits; on allow, an approval record exists with `method: native_prompt`, is used once, and a second push in the same task asks again.
+- **Then** the Allow/Deny prompt shows the exact command; a request record holds the branch and outgoing commits; after the push runs the record is `approved` by `human`, with the commit that was pushed; a second push asks again and the first record is kept.
 
-### B3 · Bypass mode falls back to the typed command
-- **Given** permission mode `bypassPermissions`.
-- **When** the lead runs `git push`.
-- **Then** denied with an approval ID; only `/engos:approve APR-…` typed in the same session lets the retry through.
+### B3 · The prompt works in every interactive mode
+- **Given** permission mode default, auto or bypassPermissions, and a settings rule that allows the command.
+- **Then** the prompt still appears (verified manually in spike round 3, H1a–H1c).
 
-### B4 · A script can't approve
-- **Given** a pending request APR-1.
-- **When** a Bash call runs `claude -p "/engos:approve APR-1"`.
-- **Then** the Bash call is denied (`self_protect`). And if the command reached the hook from a different session, the approval is refused (`session_id` mismatch).
+### B4 · A script can't approve or decide
+- **Given** a task waiting for a decision.
+- **When** a Bash call runs `claude -p "/engos:decide TASK-1 accept"`, or the command arrives from another session.
+- **Then** the Bash call is denied (`self_protect`); a typed command from another session is refused (D34).
 
-### B4b · A resumed session can't approve
-- **Given** a pending request APR-1 in session S.
-- **When** `claude -p --resume S "/engos:approve APR-1"` runs (from any source).
-- **Then** the approval is refused because a `SessionStart` with `source: resume` came after the request (D35); the user is asked again in the real session.
+### B4b · A resumed session can't decide until the decision is re-requested
+- **Given** a task waiting for a decision, and the session is then resumed (`claude -p --resume`).
+- **When** `/engos:decide TASK-1 accept` arrives.
+- **Then** it is refused (D35); after `engos task rearm TASK-1` a decision typed in the session is accepted.
 
-### B8 · Approvals expire and die with a new commit
-- **Given** an approved push APR-2 at HEAD `4e1a9c0`.
-- **When** the lead commits again before pushing, or waits more than one hour.
-- **Then** the push is denied and a new request is shown; APR-2 is marked expired in the ledger (D17).
+### B5 · Headless can't approve
+- **Given** `claude -p` with no human.
+- **Then** the hook's `ask` becomes a denial (spike P3); nothing runs.
+
+### B6 · Protected files ask once per file per task
+- **Given** a high_risk task with a plan covering `src/auth/**`.
+- **Then** the first edit of `src/auth/session.ts` asks; after Allow, further edits of that file don't ask; `src/auth/tokens.ts` asks; ordinary files never ask; a file approval older than 24 hours asks again.
+
+### B7 · Pause keeps hard gates
+- **Given** `/engos:pause` in this session.
+- **Then** edits go through without tasks or budgets; push, network, destructive and protected files still ask; `never` paths and `claude` are still blocked; a new session starts unpaused.
+
+### B8 · Unanswered requests expire
+- **Given** a request nobody answered for more than an hour.
+- **Then** it is marked `expired` and can't be granted later.
 
 ### B9 · Old Claude Code starts read-only
 - **Given** a Claude Code version without hook `onFailure`.
 - **Then** the session starts `read_only` and tells the user to update (D27).
 
-### B5 · Headless can't approve
-- **Given** `claude -p` with no human.
-- **When** the work needs a push.
-- **Then** denied; the task reports that a human approval is needed.
+### B10 · Approval records can't be forged
+- **Given** a script writes or edits a file in `.engos/approvals/`.
+- **Then** its fingerprint doesn't match what a hook wrote; the task goes to `needs_human`.
 
-### B6 · Rejection isn't re-asked
-- **Given** the user rejected a push.
-- **When** the lead requests the identical push again in the same task.
-- **Then** denied without asking; a push to a different branch may be asked.
-
-### B7 · Pause keeps hard gates
-- **Given** `/engos:pause` in this session.
-- **When** the lead edits files freely and then runs `git push`.
-- **Then** edits go through without tasks; the push still needs an approval; a write to `.engos/ledger.jsonl` is still denied.
+### B11 · An approved command may change protected files
+- **Given** the user allowed `rm -rf migrations`.
+- **Then** the deleted protected files are recorded as changed under that approval, not flagged as a violation.
 
 ## C. Execution and escalation
 

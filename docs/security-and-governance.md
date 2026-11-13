@@ -24,12 +24,14 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 
 ## Approvals
 
-- Only a human approves (D4). The gate writes the request from the real tool input and shows the exact action plus context (D16).
-- Single external actions use the native permission prompt; scope approvals and decisions use a typed command (D14).
-- In `bypassPermissions` or `auto` mode the native prompt isn't trusted and the typed command is required (D15). Headless sessions can't approve.
-- Single-action approvals are single-use, last one hour and die with a new commit. Scope approvals last until the task closes, at most 24 hours (D17).
-- No blanket approvals (D18). A rejected action can't be asked again unchanged in the same task (D19).
-- Typed approvals are accepted only from the session that created the request, and Bash may never run `claude` (D34). Spike R8 showed a script can otherwise fake a typed command.
+- Only a human approves (D4). The gate writes the request from the real tool input (D16).
+- Push, publish, network, destructive commands, unknown commands in high_risk tasks, and the first edit of each protected file in a task use Claude Code's own Allow/Deny prompt, in every interactive mode (D46, verified in spike round 3). The model can't click it.
+- Every execution of an action asks again, so action approvals are single-use without hashes or expiry. A protected file stays approved for its task, at most 24 hours.
+- The prompt shows the real action but not extra context; branch and outgoing commits are recorded with the request and shown in `/engos:status`.
+- A "No" isn't visible to hooks, so the model may ask again; nothing runs without a click. Headless sessions can't approve.
+- No blanket approvals (D18).
+- Typed commands remain only for decisions, lowering a class and pause. They count only from the session that owns the task and not after that session was resumed (D34, D35). Bash may never run `claude`.
+- Approval records are written only by hooks. A fingerprint of each record is kept, so a record changed or created by anything else is flagged as a violation.
 
 ## Data handling
 

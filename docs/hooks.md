@@ -44,14 +44,13 @@ Observer hooks (H7, H8, H9, H11) don't block. If they fail, the evidence they wo
 
 ## H2 · UserPromptExpansion
 
-Commands: `/engos:approve`, `/engos:reject`, `/engos:decide`, `/engos:class`, `/engos:pause`, `/engos:resume`.
+Typed human commands (D46): `/engos:decide TASK-xxx accept|stop`, `/engos:class TASK-xxx <lower class>`, `/engos:pause`, `/engos:resume`. Approvals are not typed any more; they use Claude Code's own prompt (H3, H4).
 
-1. Match the whole line, for example `^/engos:approve APR-[0-9a-f]{8}$`. Text that merely contains the command is ignored.
-2. Require a pending request with that ID, not expired, created in the **same `session_id`** (D34). A fresh `claude -p` gets a new session ID (spike R8), but `--resume <id>` keeps it (P9), so also refuse if a `SessionStart` with `source: resume` or `fork` happened for this session after the request was created (D35).
-3. | H3 | `PreToolUse` | `Edit|Write|MultiEdit|NotebookEdit` | Gate for file writes | block | verified (P1, P2, P4) | the decision record (`decided_by: human`) and a ledger event.
-4. `/engos:approve` with no ID: if exactly one request is pending, show its exact action and ask the user to type the ID.
+1. Match the whole line, for example `^/engos:decides+(TASK-d+)s+([a-z_]+)$`. Text that merely contains a command is ignored.
+2. A task command must come from the session that owns the task (D34). A fresh `claude -p` gets a new session ID (spike R8), but `--resume <id>` keeps it (P9), so also refuse if this session started with `source: resume` or `fork` after the decision was requested (D35). `engos task rearm TASK-xxx` re-requests the decision after a legitimate resume.
+3. Apply the command and write a ledger event with `actor: human`. The result is shown to the user as a `systemMessage`; the command's own prompt tells Claude to read `engos task status`.
 
-Known limit: the hook can't tell a typed command from one sent by another session or a scheduled task (R8, R9). The same-session rule and the `claude` block in H4 cover the realistic paths under D7.
+Known limit: the hook can't tell a typed command from one sent by another session or a scheduled task (R8, R9). The same-session and resume rules and the `claude` block in H4 cover the realistic paths under D7.
 
 ## H3 · PreToolUse on file writes
 
@@ -69,10 +68,7 @@ In order, first denial wins:
 
 1. Split the command on `&&`, `;`, `|`, `$( )` and backticks. Classify each part with `bash_classes` in `config/rules.yaml`.
 2. `self_protect` anywhere, including running `claude`: deny (G-self, D34).
-3. `vcs_remote`, `network` or `destructive`: needs an action approval (G-delivery).
-   - If `permission_mode` is `default` or `acceptEdits`: write the request and return `ask` so the native prompt shows the exact command (D14). **pending** (H1 round 3, P3, P5).
-   - If `permission_mode` is `bypassPermissions` or `auto`: deny and ask for the typed command (D15). Mode field **verified** (R6).
-   - Headless: deny.
+3. `vcs_remote`, `network` or `destructive`, or `unknown` in a high_risk task: write a request in `.engos/approvals/` with context (branch, outgoing commits) and return `ask`, so Claude Code's own Allow/Deny prompt shows the exact command. This works in every interactive mode, including auto and bypass (spike round 3). PostToolUse marks the request approved when the command ran; a "No" fires nothing and the request expires after an hour. Headless sessions turn `ask` into a denial (P3). (D46)
 4. Apply `bash_policy` for the task's class. In `high_risk`, an `unknown` command needs an action approval unless it is in the project's `known_commands` (D38).
 5. For non-read commands, save a git snapshot reference for H7.
 

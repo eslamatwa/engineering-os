@@ -25,13 +25,12 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** A1–A8, B4 (Bash part), B7 (`never` part).
 
-## Phase 3 · Approvals
+## Phase 3 · Approvals — done 2026-11-13 (see docs/phase-results.md)
 
-- Request writing from the real tool input, hash binding, ID from hash.
-- Native prompt path, typed path, fallback by permission mode, headless deny.
-- Capture with whole-line match and same-session rule; expiry; single use; rejection memory.
+- Requests from the real tool input; Claude Code's own prompt for actions and protected files (D46); grant recorded after the tool ran.
+- Typed decisions, class lowering and pause with whole-line match, same-session and resume rules.
 
-**Exit:** B2–B8 (including B4b).
+**Exit:** B2–B11 (including B4b).
 
 ## Phase 4 · Evidence and close
 
