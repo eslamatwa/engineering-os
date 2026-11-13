@@ -193,58 +193,168 @@ function cmdDoctor() {
 }
 
 // ---------------------------------------------------------------------------
-// task
+// task, profile, plan, scope
 // ---------------------------------------------------------------------------
+const R = require(path.join(__dirname, 'engos-rules.js'));
+
+function sessionId() {
+  return process.env.CLAUDE_CODE_SESSION_ID || null;
+}
+
+function protectedPaths(root) {
+  const cfg = core.loadProjectConfig(root);
+  return core.protectedFor(cfg.ok ? cfg.config : {});
+}
+
+// The task a command acts on: --task, else this session's active task, else the newest open task.
+function targetTask(root, args) {
+  if (args.task && args.task !== true) {
+    const p = core.loadProfile(root, String(args.task));
+    if (!p) fail('no task ' + args.task);
+    return p;
+  }
+  const sid = sessionId();
+  const t = sid ? core.activeTask(root, sid) : null;
+  if (t) return t;
+  const open = core.listTasks(root).filter(core.isOpen);
+  if (!open.length) fail('no open task. Open one with: engos task open --summary "..."');
+  return open[open.length - 1];
+}
+
+function list(v) {
+  if (v === undefined || v === true) return [];
+  return String(v).split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+function report(root, task, r) {
+  core.saveProfile(root, task);
+  console.log(task.task_id + ': class ' + task.effective.class + ', state ' + task.status + (r && r.raised ? ' (raised from ' + r.from + ')' : ''));
+  const missing = R.missingRequirements(task);
+  if (missing.length) console.log('Still needed before edits: ' + missing.join('; '));
+  else if (task.status === 'open') console.log('Edits can continue' + (task.effective.class === 'high_risk' ? "; protected files still need the user's scope approval." : '.'));
+}
+
 function cmdTask(args) {
   const sub = args._[1];
   const root = requireRoot();
   if (sub === 'open') {
     const summary = args.summary || args._.slice(2).join(' ');
     if (!summary || summary === true) fail('task open needs --summary "what the task is"');
-    const id = core.nextTaskId(root);
-    const profile = {
-      schema: 'engos/task-profile@1',
-      task_id: id,
-      status: 'open',
-      session_id: process.env.CLAUDE_CODE_SESSION_ID || null,
-      opened_at: new Date().toISOString(),
-      opened_by: args.by === 'human' ? 'human' : 'lead',
-      request: { summary: String(summary) },
-      effective: { class: 'question' },
-      history: [{ at: new Date().toISOString(), from: null, to: 'question', trigger: 'opened' }],
-    };
-    core.writeYaml(path.join(core.tasksDir(root), id, 'profile.yaml'), profile);
-    core.ledger(root, { type: 'task.opened', actor: { kind: 'cli' }, task_id: id, opened_by: profile.opened_by });
-    console.log(id);
+    const t = core.openTask(root, sessionId(), { summary: String(summary), openedBy: args.by === 'human' ? 'human' : 'lead', actor: 'cli' });
+    console.log(t.task_id);
     return;
   }
   if (sub === 'status' || sub === undefined) {
     const tasks = core.listTasks(root);
     const want = args._[2];
-    const shown = want ? tasks.filter((t) => t.task_id === want) : tasks.filter((t) => t.status !== 'closed');
+    const shown = want ? tasks.filter((t) => t.task_id === want) : tasks.filter(core.isOpen);
     if (!shown.length) { console.log(want ? 'No task ' + want + '.' : 'No open tasks.'); return; }
     for (const t of shown) {
-      console.log(t.task_id + '  ' + (t.status || '?') + '  ' + ((t.effective && t.effective.class) || '?') + '  ' + ((t.request && t.request.summary) || ''));
+      const o = t.observed || {};
+      console.log(t.task_id + '  ' + t.status + '  ' + ((t.effective && t.effective.class) || '?') + '  ' + ((t.request && t.request.summary) || ''));
+      if (want) {
+        console.log('  files: ' + (o.files_count || 0) + ' (+' + (o.lines_added || 0) + ' -' + (o.lines_deleted || 0) + ' lines)' + (o.files_touched && o.files_touched.length ? ': ' + o.files_touched.join(', ') : ''));
+        if (t.planned && t.planned.scope) console.log('  write scope: ' + (t.planned.scope.write || []).join(', '));
+        if (t.needs_human_reason) console.log('  needs human: ' + t.needs_human_reason);
+        const missing = R.missingRequirements(t);
+        if (missing.length) console.log('  still needed: ' + missing.join('; '));
+      }
     }
     return;
   }
   if (sub === 'close') {
     const id = args._[2];
     if (!id) fail('task close needs a task id, e.g. engos task close TASK-001');
-    const file = path.join(core.tasksDir(root), id, 'profile.yaml');
-    if (!fs.existsSync(file)) fail('no task ' + id);
-    const profile = core.readYaml(file);
+    const profile = core.loadProfile(root, id);
+    if (!profile) fail('no task ' + id);
     if (profile.status === 'closed') fail(id + ' is already closed');
-    // Phase 1: evidence requirements are not enforced yet (phase 4 adds them).
+    if (profile.status === 'needs_human') fail(id + ' is waiting for a human decision (' + (profile.needs_human_reason || '') + "). It can't be closed until that is resolved.");
+    // Evidence requirements arrive in build phase 4.
     profile.status = 'closed';
     profile.closed_at = new Date().toISOString();
     profile.close_note = 'closed without evidence checks: evidence rules arrive in build phase 4';
-    core.writeYaml(file, profile);
+    core.saveProfile(root, profile);
     core.ledger(root, { type: 'task.closed', actor: { kind: 'cli' }, task_id: id, evidence_checked: false });
+    const sid = sessionId();
+    if (sid) { const s = core.loadSession(root, sid); if (s && s.active_task === id) { s.active_task = null; core.saveSession(root, sid, s); } }
     console.log(id + ' closed.');
     return;
   }
   fail('unknown task command "' + sub + '". Use open, status or close.');
+}
+
+const KINDS = ['question', 'analysis', 'docs', 'tests', 'bugfix', 'feature', 'refactor', 'debugging', 'security_review', 'architecture', 'migration'];
+const FLAGS = ['auth', 'payments', 'secrets', 'data_migration', 'deployment', 'other'];
+
+function cmdProfile(args) {
+  if (args._[1] !== 'set') fail('use: engos profile set --kind <kind> [--sensitivity auth,payments] [--reversibility easy|hard|irreversible] [--unknowns "a;b"]');
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  if (task.status === 'needs_human') fail(task.task_id + ' is waiting for a human decision.');
+  const d = task.declared || {};
+  if (args.kind !== undefined) {
+    if (!KINDS.includes(String(args.kind))) fail('kind must be one of: ' + KINDS.join(', '));
+    d.kind = String(args.kind);
+  }
+  if (args.sensitivity !== undefined) {
+    const flags = list(args.sensitivity);
+    for (const fl of flags) if (!FLAGS.includes(fl)) fail('sensitivity flags: ' + FLAGS.join(', '));
+    d.sensitivity = Array.from(new Set((d.sensitivity || []).concat(flags))); // can only add (D13)
+  }
+  if (args.reversibility !== undefined) {
+    const v = String(args.reversibility);
+    if (!['easy', 'hard', 'irreversible'].includes(v)) fail('reversibility: easy, hard or irreversible');
+    d.reversibility = v;
+  }
+  if (args.unknowns !== undefined) d.unknowns = String(args.unknowns).split(';').map((x) => x.trim()).filter(Boolean);
+  d.mutates = args.mutates === undefined ? (d.mutates !== false) : String(args.mutates) !== 'false';
+  if (!d.kind) fail('profile needs --kind');
+  task.declared = d;
+  core.ledger(root, { type: 'profile.declared', actor: { kind: 'cli' }, task_id: task.task_id, declared: d });
+  const r = core.ratchet(root, task, 'profile', protectedPaths(root));
+  report(root, task, r);
+}
+
+function cmdPlan(args) {
+  if (args._[1] !== 'set') fail('use: engos plan set --scope-write "src/x/**,tests/x/**" [--scope-read "src/**"] [--steps "S1:locate,S2:implement"]');
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  if (task.status === 'needs_human') fail(task.task_id + ' is waiting for a human decision.');
+  const write = list(args['scope-write']);
+  if (!write.length) fail('plan needs --scope-write with at least one path or glob');
+  const prev = (task.planned && task.planned.scope && task.planned.scope.write) || [];
+  if (prev.length) fail(task.task_id + ' already has a plan. Use engos scope amend to widen it.');
+  task.planned = {
+    scope: { write, read: list(args['scope-read']) },
+    steps: list(args.steps).map((s) => { const parts = s.split(':'); return { id: parts[0], kind: parts[1] || 'implement' }; }),
+    set_at: new Date().toISOString(),
+  };
+  core.ledger(root, { type: 'plan.set', actor: { kind: 'cli' }, task_id: task.task_id, scope_write: write });
+  const r = core.ratchet(root, task, 'plan', protectedPaths(root));
+  report(root, task, r);
+}
+
+function cmdScope(args) {
+  if (args._[1] !== 'amend') fail('use: engos scope amend --add "<glob>" --reason "..."');
+  const root = requireRoot();
+  const task = targetTask(root, args);
+  const add = list(args.add);
+  const reason = args.reason;
+  if (!add.length || !reason || reason === true) fail('scope amend needs --add "<glob>" and --reason "..."');
+  if (!task.planned || !task.planned.scope) fail(task.task_id + ' has no plan yet. Use engos plan set first.');
+  const max = core.defaults().rules.scope.lead_widen_max_per_task;
+  if ((task.scope_amendments || 0) >= max) fail('scope was already widened ' + max + ' times for ' + task.task_id + '. Ask the user instead (D12).');
+  const prot = protectedPaths(root);
+  for (const g of add) {
+    const sample = String(g).replace(/\*.*$/, '').replace(/\/$/, '') || '.';
+    const lvl = R.protectedLevel(sample + '/x', prot) || R.protectedLevel(String(g).replace(/\*/g, 'x'), prot);
+    if (lvl) fail(g + ' touches a ' + lvl + " protected path, so it can't be added by a scope amendment (D12).");
+  }
+  const before = task.planned.scope.write.slice();
+  task.planned.scope.write = Array.from(new Set(before.concat(add)));
+  task.scope_amendments = (task.scope_amendments || 0) + 1;
+  core.ledger(root, { type: 'scope.amended', actor: { kind: 'cli' }, task_id: task.task_id, before, after: task.planned.scope.write, reason: String(reason) });
+  report(root, task, null);
 }
 
 // ---------------------------------------------------------------------------
@@ -255,12 +365,15 @@ function main() {
     case 'init': return cmdInit(args);
     case 'doctor': return cmdDoctor();
     case 'task': return cmdTask(args);
+    case 'profile': return cmdProfile(args);
+    case 'plan': return cmdPlan(args);
+    case 'scope': return cmdScope(args);
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--scope-read "..."] [--steps "S1:locate"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

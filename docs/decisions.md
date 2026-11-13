@@ -54,6 +54,7 @@ Source review: `docs/reviews/fable-architecture-review.md`.
 | D42 | Minimum Claude Code version is the newest one tested, starting at 2.1.321, read at session start by running the binary in `CLAUDE_CODE_EXECPATH` with `--version`. Unknown version: warn, don't lock. Hooks never log environment variables (they include the user's email and account IDs). The session-start hook doesn't block on failure, so a broken install can't lock someone out of Claude Code; the PreToolUse gate does block (D34). | 2026-11-13 |
 | D43 | License: MIT. `LICENSE` at the repo root and in `plugin/`, `"license": "MIT"` in `plugin.json`. Copyright line: "Engineering OS contributors" until the owner names a holder. Vendored js-yaml keeps its own MIT notice. | 2026-11-13 |
 | D44 | Keep Node for v0.1. Latency target becomes: Engineering OS code adds at most 30 ms (p95) on top of Node start-up, measured by `tools/measure-hook.js`. Node's compile cache is enabled in the hook. Prebuilt binaries stay in roadmap v0.2. | 2026-11-13 |
+| D45 | Task profiles are stored as `.engos/tasks/TASK-xxx/profile.json` (not YAML), with `baseline.json` beside it. They are local machine state read on every gated call and written only by hooks and the CLI; JSON keeps the gate fast. | 2026-11-13 |
 
 ### D8 class requirements
 

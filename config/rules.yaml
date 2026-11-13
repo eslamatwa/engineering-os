@@ -148,19 +148,39 @@ assurance_rules:
 # && ; | $( ) and backticks. Anything that fails to parse counts as the highest class seen, else unknown.
 # ---------------------------------------------------------------------------
 bash_classes:
-  read:          ["ls", "cat", "head", "tail", "rg", "grep", "find", "git status", "git log", "git diff", "git show"]
-  check:         "engos check <name> only (D36); it runs the exact command from .engos/config.yaml checks"
-  vcs_local:     ["git add", "git commit", "git switch", "git checkout -b", "git branch", "git stash"]
-  pkg_install:   ["npm install", "npm i", "pnpm add", "yarn add", "pip install", "cargo add", "go get"]
-  network:       ["curl", "wget", "ssh", "scp", "rsync", "Invoke-WebRequest"]
-  vcs_remote:    ["git push", "gh pr create", "gh release", "npm publish", "cargo publish"]
-  destructive:   ["rm -rf (outside temp)", "git reset --hard", "git clean", "DROP TABLE", "Remove-Item -Recurse"]
-  self_protect:  ["claude", "any write to never paths", "editing hooks or settings"]   # D34: blocking `claude` is mandatory
-  unknown:       "everything else"
+  # Machine-readable. Each part of a command (split on && || ; | & newlines, $( ) and backticks) is classified
+  # in this order; the first class that matches wins for that part. The whole command takes the most severe part.
+  # "commands" match the first word (path and .exe stripped, case-insensitive); "prefixes" match the start of the part
+  # after env assignments and sudo/env/command/time are removed.
+  order: [self_protect, destructive, vcs_remote, network, pkg_install, check, engos, vcs_local, read, unknown]
+  self_protect:
+    commands: [claude, claude-code]          # D34: running claude from Bash is always blocked
+    touches_never_paths: true                # any non-read part that names a `never` path
+  destructive:
+    prefixes: ["git reset --hard", "git clean", "git push --force", "git push -f", "git branch -D", "git checkout --", "rm -rf", "rm -fr", "rm -r", "Remove-Item -Recurse", "rmdir /s", "del /s", "dropdb"]
+    sql: ["drop table", "drop database", "truncate table"]
+  vcs_remote:
+    prefixes: ["git push", "gh pr create", "gh pr merge", "gh release", "gh repo create", "gh repo delete", "npm publish", "pnpm publish", "yarn publish", "cargo publish", "twine upload", "docker push"]
+  network:
+    commands: [curl, wget, ssh, scp, sftp, rsync, ftp, nc, ncat, telnet, Invoke-WebRequest, Invoke-RestMethod, iwr, irm]
+  pkg_install:
+    prefixes: ["npm install", "npm i", "npm add", "npm ci", "pnpm add", "pnpm install", "pnpm i", "yarn add", "yarn install", "pip install", "pip3 install", "python -m pip install", "uv add", "uv pip install", "poetry add", "cargo add", "go get", "gem install", "composer require"]
+  check:
+    prefixes: ["engos check"]                # D36: the only way checks count as evidence
+  engos:
+    commands: [engos]                        # the CLI is the writer of task state
+  vcs_local:
+    prefixes: ["git add", "git commit", "git switch", "git checkout", "git branch", "git stash", "git restore", "git merge", "git rebase", "git tag", "git mv", "git rm", "git init"]
+  read:
+    commands: [ls, dir, cat, type, head, tail, less, more, rg, grep, egrep, fgrep, find, fd, wc, pwd, echo, printf, which, where, tree, stat, file, du, df, date, whoami, env, printenv, sort, uniq, cut, diff, cmp, basename, dirname, realpath, readlink, true, false, test, Get-ChildItem, Get-Content, Get-Location, Select-String]
+    prefixes: ["git status", "git log", "git diff", "git show", "git rev-parse", "git ls-files", "git remote -v", "git blame", "git branch --list", "git config --get", "node --version", "node -v", "npm --version", "npm ls", "npm view", "python --version"]
+    not_read_if: [output_redirect, "find -delete", "find -exec", "sed -i"]   # these turn a read into unknown
+  unknown: everything else
 
 bash_policy:                 # per class: question/trivial | standard | high_risk
   read:         [allow, allow, allow]
   check:        [allow_record, allow_record, allow_record]
+  engos:        [allow, allow, allow]
   vcs_local:    [allow, allow, allow]
   pkg_install:  [raise_to_standard, allow_observe, allow_observe]
   unknown:      [allow_observe, allow_observe, approval]        # D38; project known_commands are treated as allow_observe in every class

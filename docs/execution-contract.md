@@ -21,7 +21,7 @@ any ──(external action)──▶ awaiting_approval ──▶ previous state
 
 ## Task profile
 
-`.engos/tasks/TASK-012/profile.yaml`, written by the CLI.
+`.engos/tasks/TASK-012/profile.json`, written by hooks and the CLI (D45). Shown here as YAML for readability.
 
 ```yaml
 schema: engos/task-profile@1

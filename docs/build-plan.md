@@ -17,7 +17,7 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** B1, B9, F1; init on an empty folder and on an existing repo; hook latency measured on Windows.
 
-## Phase 2 · Gate and fast path
+## Phase 2 · Gate and fast path — done 2026-11-13 (see docs/phase-results.md)
 
 - Path rules (`never`, protected, scope), modes, auto `trivial_edit`, budgets, class ratchet, sensitivity flags.
 - Bash splitter and classifier, `self_protect`.

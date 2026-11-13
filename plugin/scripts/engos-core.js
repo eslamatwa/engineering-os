@@ -83,8 +83,11 @@ function writeJson(file, data) {
 // ---------------------------------------------------------------------------
 function ledger(root, event) {
   const line = JSON.stringify(Object.assign({ at: new Date().toISOString() }, event)) + '\n';
-  fs.mkdirSync(engosPath(root), { recursive: true });
-  fs.appendFileSync(engosPath(root, 'ledger.jsonl'), line, 'utf8');
+  fs.mkdirSync(engosPath(root, 'sessions'), { recursive: true });
+  const file = engosPath(root, 'ledger.jsonl');
+  fs.appendFileSync(file, line, 'utf8');
+  // Record the expected size so the observer can tell our appends from anyone else's (D37).
+  try { fs.writeFileSync(engosPath(root, 'sessions', 'ledger.size'), String(fs.statSync(file).size), 'utf8'); } catch (_) { /* best effort */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,22 +208,114 @@ function tasksDir(root) {
   return engosPath(root, 'tasks');
 }
 
+// Task profiles are JSON: local machine state read on every gated call, written only by hooks and the CLI.
+function profileFile(root, id) {
+  return path.join(tasksDir(root), id, 'profile.json');
+}
+
+function loadProfile(root, id) {
+  return readJson(profileFile(root, id), null);
+}
+
+function saveProfile(root, profile) {
+  writeJson(profileFile(root, profile.task_id), profile);
+}
+
 function listTasks(root) {
   const dir = tasksDir(root);
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
     .filter((d) => /^TASK-\d+$/.test(d))
     .sort()
-    .map((id) => {
-      const file = path.join(dir, id, 'profile.yaml');
-      try { return readYaml(file); } catch (_) { return { task_id: id, status: 'unreadable' }; }
-    });
+    .map((id) => loadProfile(root, id) || { task_id: id, status: 'unreadable' });
 }
 
 function nextTaskId(root) {
-  const nums = listTasks(root).map((t) => Number(String(t.task_id || '').replace('TASK-', ''))).filter((n) => !isNaN(n));
+  const dir = tasksDir(root);
+  const nums = fs.existsSync(dir) ? fs.readdirSync(dir).filter((d) => /^TASK-\d+$/.test(d)).map((d) => Number(d.slice(5))) : [];
   const n = (nums.length ? Math.max(...nums) : 0) + 1;
   return 'TASK-' + String(n).padStart(3, '0');
+}
+
+function isOpen(t) {
+  return t && t.status && t.status !== 'closed' && t.status !== 'unreadable';
+}
+
+// The task this session is working on: the one recorded in the session file, else the newest
+// open task bound to this session, else the newest open task with no session (claimed now).
+function activeTask(root, sessionId) {
+  const s = loadSession(root, sessionId);
+  if (s && s.active_task) {
+    const p = loadProfile(root, s.active_task);
+    if (isOpen(p)) return p;
+  }
+  const open = listTasks(root).filter(isOpen);
+  let t = open.filter((x) => x.session_id === sessionId).pop();
+  if (!t) {
+    t = open.filter((x) => !x.session_id).pop();
+    if (t && sessionId) { t.session_id = sessionId; saveProfile(root, t); }
+  }
+  if (t && s) { s.active_task = t.task_id; saveSession(root, sessionId, s); }
+  return t || null;
+}
+
+function protectedFor(config) {
+  return require('./engos-rules.js').effectiveProtected(defaults().rules, config || {});
+}
+
+// Open a task with a baseline of the repo so later changes can be measured (D37).
+function openTask(root, sessionId, opts) {
+  const o = opts || {};
+  const observeLib = require('./engos-observe.js');
+  const cfg = loadProjectConfig(root);
+  const prot = protectedFor(cfg.ok ? cfg.config : {});
+  const id = nextTaskId(root);
+  const now = new Date().toISOString();
+  const cls = o.cls || 'question';
+  const profile = {
+    schema: 'engos/task-profile@1',
+    task_id: id,
+    status: o.state || 'open',
+    session_id: sessionId || null,
+    opened_at: now,
+    opened_by: o.openedBy || 'lead',
+    request: { summary: o.summary || '' },
+    declared: {},
+    planned: {},
+    observed: { files_touched: [], files_count: 0, files_created: 0, files_deleted: 0, lines_added: 0, lines_deleted: 0, modules: [], protected_hits: [] },
+    effective: { class: cls, floor_sources: o.sources || [] },
+    scope_amendments: 0,
+    history: [{ at: now, from: null, to: cls, trigger: o.trigger || 'opened' }],
+  };
+  fs.mkdirSync(path.join(tasksDir(root), id), { recursive: true });
+  writeJson(path.join(tasksDir(root), id, 'baseline.json'), observeLib.baseline(root, prot));
+  saveProfile(root, profile);
+  if (sessionId) {
+    const s = loadSession(root, sessionId);
+    if (s) { s.active_task = id; saveSession(root, sessionId, s); }
+  }
+  ledger(root, { type: 'task.opened', actor: { kind: o.actor || 'hook' }, task_id: id, opened_by: profile.opened_by, class: cls, session_id: sessionId || null });
+  return profile;
+}
+
+function loadBaseline(root, id) {
+  return readJson(path.join(tasksDir(root), id, 'baseline.json'), { git_head: null, dirty_at_open: {}, protected_snapshot: {} });
+}
+
+// Re-run the ratchet; record any change. Returns { raised, from, to, missing }.
+function ratchet(root, profile, trigger, protectedPaths) {
+  const R = require('./engos-rules.js');
+  const r = R.recompute(profile, defaults().rules, protectedPaths);
+  if (r.raised) {
+    profile.effective.class = r.cls;
+    profile.effective.floor_sources = r.sources;
+    profile.history.push({ at: new Date().toISOString(), from: r.from, to: r.cls, trigger });
+    ledger(root, { type: 'class.changed', actor: { kind: 'hook' }, task_id: profile.task_id, from: r.from, to: r.cls, rule_id: r.sources.join(','), trigger });
+  }
+  const missing = R.missingRequirements(profile);
+  if (missing.length && profile.status === 'open') profile.status = 'upgrade_pending';
+  if (!missing.length && profile.status === 'upgrade_pending') profile.status = 'open';
+  return { raised: r.raised, from: r.from, to: profile.effective.class, missing };
 }
 
 module.exports = {
@@ -246,6 +341,15 @@ module.exports = {
   loadSession,
   saveSession,
   tasksDir,
+  profileFile,
+  loadProfile,
+  saveProfile,
   listTasks,
   nextTaskId,
+  isOpen,
+  activeTask,
+  protectedFor,
+  openTask,
+  loadBaseline,
+  ratchet,
 };

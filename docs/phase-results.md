@@ -66,3 +66,66 @@ Engineering OS code adds about 5–25 ms; Node start-up on Windows is about 110 
 - The `bin/` launcher must resolve its own path for Windows (E2E-2).
 - Hooks see many environment variables, including the user's email and account IDs. The hook never logs the environment (D42); a unit test checks the ledger has no email.
 - `claude plugin validate` passes. The plugin directory would refuse a submission without a license, and warns about a missing icon. Both are phase 7 items; the license is the owner's choice.
+
+## Phase 2 · Gate and fast path (2026-11-13)
+
+**Status:** done. Approvals are not built yet, so everything that needs one is blocked with a message saying so; phase 3 turns those into requests.
+
+### What was built
+
+| File | What |
+| --- | --- |
+| `plugin/scripts/engos-rules.js` | Globs (gitignore-style, case-insensitive on Windows and macOS), Bash splitter (quotes, `&&`, `\|\|`, `;`, `\|`, `$( )`, backticks), command classifier, policy lookup, class ratchet |
+| `plugin/scripts/engos-observe.js` | Baseline at task open; `git status --porcelain=v2` + `git diff <base> --numstat`; size/mtime snapshot of protected and `never` files including gitignored ones; ledger size check (D37) |
+| `plugin/scripts/engos-hook.js` | Write gate (H3), Bash gate (H4), observer on PostToolUse (H7/H9) |
+| `plugin/scripts/engos-core.js` | Tasks: open with baseline, active task per session, ratchet with history and ledger events |
+| `plugin/scripts/engos-cli.js` | `profile set`, `plan set`, `scope amend`; `task status <ID>` shows files, scope and what is still needed |
+| `config/rules.yaml` | Bash classes rewritten in machine-readable form; `engos` class added |
+| `tests/unit/phase2.test.js` | 18 tests |
+
+### Exit scenarios (unit, in temporary git repos)
+
+| Scenario | Result |
+| --- | --- |
+| A1 small edit opens a trivial task by itself | Pass |
+| A2 third file raises to standard; plan unlocks it; earlier changes stay. Also 60 changed lines raise after the edit | Pass |
+| A3 protected path blocked before the edit; task high_risk; still blocked after a plan until scope approval (phase 3) | Pass |
+| A4 Arabic request + `--sensitivity auth` makes the task high_risk before any edit | Pass |
+| A5 write outside scope blocked; amendments max 2; never to a protected path | Pass |
+| A6 a script rewriting gitignored `.env` is caught; task waits for a human; edits blocked | Pass |
+| A7 untracked, staged and renamed files all counted | Pass (first run failed because the test staged an unchanged file; test fixed) |
+| A8 unknown command in high_risk needs approval; `known_commands` entry runs | Pass |
+| B4 (Bash part) `claude` blocked, also inside `$( )` and with a full path | Pass |
+| B7 (`never` part) ledger, approvals and Claude settings can't be edited, including via `>>` | Pass |
+| Extra: ledger tampering by a script detected through the recorded ledger size | Pass |
+| Extra: package install makes a task standard; reads never open tasks; push, network and destructive need approval; read-only session runs reads only; pre-existing changes not counted | Pass |
+
+All unit tests: 30 of 30 pass (`node --test tests/unit/phase1.test.js tests/unit/phase2.test.js`).
+
+### End-to-end in real Claude Code (2.1.321, Haiku, `--plugin-dir`, bypassPermissions)
+
+| # | What | Result |
+| --- | --- | --- |
+| P2-E1 | Rename a variable (A1) | Done; TASK-001 opened automatically as `trivial_edit` |
+| P2-E2 | Edit `src/auth/session.ts` (A3) | Blocked; the model reported the exact reason and what is needed; file unchanged |
+| P2-E3 | `node scripts/setup.js` rewrites gitignored `.env` (A6) | The PostToolUse message reached the model word for word; the model stopped and told the user; task `needs_human`. This verifies that `decision: block` from PostToolUse is delivered to Claude. |
+| P2-E4 | `claude --version` from Bash (B4) | Blocked |
+| P2-E5 | `git push origin main` | Blocked with "needs your approval" |
+
+### Latency (Windows, 30 runs)
+
+| Case | p50 | p95 |
+| --- | --- | --- |
+| Node start-up only | 111 ms | 139 ms |
+| Gate, Write in an open task | 128 ms | 149 ms |
+| Gate, Bash classification | 123 ms | 159 ms |
+| Observer after Write (2 git calls) | 306 ms | 337 ms |
+| Observer after Bash (4 git calls incl. protected snapshot) | 441 ms | 494 ms |
+
+Gate overhead over Node start-up (p95): Write 10 ms, Bash 21 ms, inside the D44 target. The observer only runs inside a task and after the call has finished; each git call costs about 100 ms on Windows. Optimising it is a phase 7 item.
+
+### Deferred on purpose
+
+- Requests and approvals for protected scope, push, network, destructive and high_risk unknown commands: phase 3. Until then they are blocked.
+- Typed `/engos:class` to lower a class, and resolving `needs_human`: phase 3 (they must come from the human).
+- Lead integration budget in standard tasks (H3 rule 6) and the Agent gate: phase 5, when workers exist.

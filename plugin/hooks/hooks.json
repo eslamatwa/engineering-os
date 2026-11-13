@@ -1,5 +1,5 @@
 {
-  "description": "Engineering OS hooks. Phase 1: session self-check and the read-only write gate. See docs/hooks.md.",
+  "description": "Engineering OS hooks. Phase 2: session self-check, write and Bash gates, change observer. See docs/hooks.md.",
   "hooks": {
     "SessionStart": [
       {
@@ -22,6 +22,18 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" pre-tool-use",
             "timeout": 15,
             "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/engos-hook.js\" post-tool-use",
+            "timeout": 30
           }
         ]
       }

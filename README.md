@@ -2,7 +2,7 @@
 
 A Claude Code plugin that catches mistakes before they land. It classifies each request from what the code actually touches, routes every step to the right Claude model, blocks what policy forbids, asks you before anything leaves your machine, and accepts nothing as done without recorded evidence.
 
-**Status:** build phase 1 (skeleton) done; phases 2–7 to go. Platform spike round 3 (needs a person) pending. See `docs/build-plan.md` and `docs/phase-results.md`.
+**Status:** build phases 1 (skeleton) and 2 (gate and fast path) done; phases 3–7 to go. Platform spike round 3 (needs a person) pending. See `docs/build-plan.md` and `docs/phase-results.md`.
 
 ## What it protects against
 
@@ -21,7 +21,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D44). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D45). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |

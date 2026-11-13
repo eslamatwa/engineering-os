@@ -20,13 +20,13 @@ Status column: **verified** = confirmed in `docs/spike-results.md`; **pending** 
 | --- | --- | --- | --- | --- | --- |
 | H1 | `SessionStart` | `startup\|resume\|compact\|clear` | Self-check, then inject a short state summary | default: never blocks (D42) | built and tested, phase 1 |
 | H2 | `UserPromptExpansion` | `/engos:*` commands | Capture approvals, decisions, class changes, pause | block | verified fields (R7) |
-| H3 | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Gate for file writes | block | verified (P1, P2, P4) |
-| H4 | `PreToolUse` | `Bash` | Gate for commands | block | deny verified (P4); ask in headless = deny (P3) |
+| H3 | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Gate for file writes | block | built and tested, phase 2 |
+| H4 | `PreToolUse` | `Bash` | Gate for commands | block | built and tested, phase 2 (approvals: phase 3) |
 | H5 | `PreToolUse` | `Agent\|Task` | Gate for subagents and models | block | fields verified (P6, P6b) |
 | H6 | `PreToolUse` | `mcp__.*` | External tools need approval unless allowlisted | block | assumed |
-| H7 | `PostToolUse` | `Bash` | Observe changes; record check results | default | assumed |
+| H7 | `PostToolUse` | `Bash` | Observe changes; record check results | default | built and tested, phase 2; message delivery verified (P2-E3) |
 | H8 | `PostToolUseFailure` | `Bash` | Record failed checks with exit code | default | verified (P8) |
-| H9 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Update observed counts | default | assumed |
+| H9 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Update observed counts | default | built and tested, phase 2 |
 | H10 | `SubagentStart` | all | Inject role card and step contract; ledger `step.started` | block | fields verified (P7); injection pending |
 | H11 | `SubagentStop` | all | Read report, compare with observed changes; ledger `step.ended` | default | fields verified (P7) |
 | H12 | `Stop` | all | Remind about open tasks. No enforcement. | default | assumed |
