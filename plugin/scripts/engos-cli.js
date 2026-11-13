@@ -354,6 +354,13 @@ function cmdProfile(args) {
   const root = requireRoot();
   const task = targetTask(root, args);
   if (task.status === 'needs_human') fail(task.task_id + ' is waiting for a human decision.');
+  applyProfile(root, task, args);
+  const r = core.ratchet(root, task, 'profile', protectedPaths(root));
+  report(root, task, r);
+}
+
+// Shared by profile set and plan set (one command for both saves a refusal round trip).
+function applyProfile(root, task, args) {
   const d = task.declared || {};
   if (args.kind !== undefined) {
     if (!KINDS.includes(String(args.kind))) fail('kind must be one of: ' + KINDS.join(', '));
@@ -374,17 +381,18 @@ function cmdProfile(args) {
   if (!d.kind) fail('profile needs --kind');
   task.declared = d;
   core.ledger(root, { type: 'profile.declared', actor: { kind: 'cli' }, task_id: task.task_id, declared: d });
-  const r = core.ratchet(root, task, 'profile', protectedPaths(root));
-  report(root, task, r);
+  return d;
 }
 
 function cmdPlan(args) {
-  if (args._[1] !== 'set') fail('use: engos plan set --scope-write "src/x/**,tests/x/**" [--scope-read "src/**"] [--steps "S1:locate,S2:implement"]');
+  if (args._[1] !== 'set') fail('use: engos plan set --kind <kind> --scope-write "src/x/**,tests/x/**" [--sensitivity auth] [--acceptance "a; b"] [--steps "S1:locate,S2:implement"]');
   const root = requireRoot();
   const task = targetTask(root, args);
   if (task.status === 'needs_human') fail(task.task_id + ' is waiting for a human decision.');
   const write = list(args['scope-write']);
   if (!write.length) fail('plan needs --scope-write with at least one path or glob');
+  if (args.kind !== undefined || args.sensitivity !== undefined || args.reversibility !== undefined) applyProfile(root, task, args);
+  else if (!task.declared || !task.declared.kind) fail('plan set needs --kind too (bugfix, feature, refactor, docs, tests, debugging, migration, security_review, architecture, analysis)');
   const prev = (task.planned && task.planned.scope && task.planned.scope.write) || [];
   if (prev.length) fail(task.task_id + ' already has a plan. Use engos scope amend to widen it.');
   task.planned = {

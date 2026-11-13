@@ -37,12 +37,16 @@ function sumProject(dir, extraFiles) {
   if (extraFiles) extraFiles(dir);
 }
 
-const TASKS = [
+const ONLY = (process.env.BENCH_TASKS || '').split(',').filter(Boolean);
+const TASKS_ALL = [
+  { id: 'big-docs', setup: (d) => copyDir(path.join(REPO, 'plugin'), d), prompt: 'Write docs/MODULES.md: for every .js file in scripts/ (skip vendor/), give its purpose in one or two sentences and list each exported function with a one-line description. Read the code so it is accurate.', ok: (d) => { try { const t = fs.readFileSync(path.join(d, 'docs/MODULES.md'), 'utf8'); return /engos-orchestrate/.test(t) && /engos-hook/.test(t); } catch (_) { return false; } } },
   { id: 'analyze', setup: (d) => copyDir(path.join(REPO, 'plugin'), d), prompt: 'Give me an overview of this project: the main modules, how they connect, and the three biggest risks you see. Don\'t change any files.', ok: () => true },
   { id: 'trivial', setup: (d) => sumProject(d, (x) => write(x, 'src/sum.js', SUM.replace('i = 1', 'i = 0'))), prompt: 'Change the comment at the top of src/sum.js to: // Adds up a list of numbers.', ok: (d) => /Adds up a list of numbers/.test(fs.readFileSync(path.join(d, 'src/sum.js'), 'utf8')) },
   { id: 'bugfix', setup: (d) => sumProject(d), prompt: 'npm test fails. Find and fix the bug, and make sure the tests pass.', ok: (d) => testsPass(d) },
   { id: 'feature', setup: (d) => sumProject(d, (x) => write(x, 'src/sum.js', SUM.replace('i = 1', 'i = 0'))), prompt: 'Add an average(list) function in src/average.js that returns 0 for an empty list, with tests in test/average.test.js (npm test runs every *.test.js in test/), and mention it in README.md. Make sure the tests pass.', ok: (d) => testsPass(d) && fs.existsSync(path.join(d, 'src/average.js')) },
 ];
+
+const TASKS = ONLY.length ? TASKS_ALL.filter((t) => ONLY.includes(t.id)) : TASKS_ALL;
 
 function testsPass(d) { return cp.spawnSync('npm', ['test'], { cwd: d, shell: true, stdio: 'ignore' }).status === 0; }
 

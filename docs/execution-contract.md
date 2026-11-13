@@ -7,7 +7,7 @@ How a task moves from request to close, and the records each step leaves. Rules 
 ```text
 idle ──(first edit or command, inside trivial budget)────▶ open (trivial_edit, auto task)
 idle ──(engos task open)────────────────────────────────▶ open
-open ──(class raised; profile or plan missing)──▶ upgrade_pending ──(engos profile set / plan set)──▶ open
+open ──(class raised; profile or plan missing)──▶ upgrade_pending ──(engos plan set --kind … --scope-write …)──▶ open
 open ──(violation, 3 failed attempts, 2 env errors, dispute or amendment for the user)──▶ needs_human
 needs_human ──(/engos:decide …)──▶ open | closed
 open ──(engos task close, evidence complete)──▶ closed
@@ -219,8 +219,8 @@ The only writer of task state. Lives in the plugin's `bin/` and is on PATH for t
 | `engos init` | Create `.engos/` (`--models`, `--check name=cmd`, `--known cmd`, `--deny-rules`, `--status-line`, `--git-init`) |
 | `engos doctor` | Self-check: Node, Claude Code version, config, git |
 | `engos task open\|status\|close\|rearm` | Open a task, show it, close it (refuses without required evidence), re-ask a decision after a resume |
-| `engos profile set` | Write the declared block |
-| `engos plan set` | Write scope, acceptance criteria and steps (`--steps "S1:locate,S2:implement,S3:verify"`) |
+| `engos profile set` | Write the declared block (also accepted by `plan set`) |
+| `engos plan set` | Write scope, acceptance criteria and steps (`--steps "S1:locate,S2:implement,S3:verify"`). Takes `--kind`, `--sensitivity` and `--reversibility` too, so one command opens a standard task (cost) |
 | `engos step add\|list\|brief S2` | Add steps, list them, print a step's brief with the exact subagent type and model |
 | `engos dispute open\|settle` | Record a worker/validator dispute; the lead settles one per standard task, the rest go to the user (D25) |
 | `engos scope amend` | Widen scope (max 2 per task, unprotected paths only) |

@@ -329,3 +329,9 @@ All unit tests: 74 of 74.
 
 - **Recommendations (D50):** `engos recommend` and `/engos:recommend`, also offered at the end of `/engos:init`. Tested with a fake catalog (official marketplace only, fits the project, installed ones skipped, exact install commands) and live on this repo (GitHub MCP, TypeScript language server, code-review, security-guidance). 75 of 75 unit tests.
 - **Benchmark:** see `docs/benchmark.md`. With Engineering OS the four tasks cost 13% more in total (+3% trivial, +7% bug fix, +12% analysis, +32% a 3-file feature). No agents were used, so routing savings were not measured.
+
+### Phase 7 additions: cost
+
+- One command opens a standard task (`engos plan set --kind … --scope-write …`); the refusal names that one command; shorter session summary; the empty brief template is no longer injected; the session summary tells the lead to send heavy reading to an `engos:scout` on Haiku.
+- Benchmark round 3 (`docs/benchmark.md`): big reading-heavy task −41% and project analysis −23% against plain Claude Code; small edits +2–3%; a small 3-file feature +19%. Reading through a scout is slower in wall-clock time.
+- 76 of 76 unit tests.

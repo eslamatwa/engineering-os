@@ -80,7 +80,7 @@ test('session start in a healthy project: normal mode, context, ledger', () => {
   const r = runHook('session-start', { session_id: 'sess-ok', cwd: dir, source: 'startup' });
   assert.strictEqual(r.code, 0);
   const out = JSON.parse(r.stdout);
-  assert.match(out.hookSpecificOutput.additionalContext, /Session mode: normal/);
+  assert.match(out.hookSpecificOutput.additionalContext, /normal mode/);
   const s = core.loadSession(dir, 'sess-ok');
   assert.strictEqual(s.mode, 'normal');
   const led = fs.readFileSync(path.join(dir, '.engos', 'ledger.jsonl'), 'utf8');

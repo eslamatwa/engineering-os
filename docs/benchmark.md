@@ -1,30 +1,32 @@
 # Token and cost benchmark
 
-The same requests in real Claude Code (2.1.321, headless, Sonnet as the main model), with and without Engineering OS. Each task ran twice per side in a fresh repo. Run with `node tools/bench.js <work-dir> <claude-exe> 2 sonnet`. Costs are Claude Code's own `total_cost_usd` (list prices); tokens include cache reads and writes.
+The same requests in real Claude Code (2.1.321, headless, Sonnet as the main model), with and without Engineering OS. Each task ran twice per side in a fresh repo. Run with `node tools/bench.js <work-dir> <claude-exe> 2 sonnet` (`BENCH_TASKS=a,b` to pick tasks). Costs are Claude Code's own `total_cost_usd` (list prices); tokens include cache reads and writes. Every run finished its task correctly.
 
-Run: 2026-11-13, 16 sessions, $1.09 in total. All 16 finished their task correctly.
+## Result after the cost changes (round 3, 2026-11-14)
 
-| Task | Without | With Engineering OS | Difference | Tokens without → with | Turns | Time |
-| --- | --- | --- | --- | --- | --- | --- |
-| Read and analyse an existing project (the plugin's own 2,500 lines) | $0.227 | $0.254 | +12% | 260k → 325k | 7 → 8 | 33s → 37s |
-| Trivial edit (one comment) | $0.089 | $0.092 | +3% | 136k → 137k | 3 → 3 | 10s → 12s |
-| Bug fix with a failing test | $0.100 | $0.106 | +7% | 185k → 209k | 5 → 5.5 | 18s → 22s |
-| Small feature across 3 files | $0.097 | $0.127 | +32% | 160k → 282k | 3.5 → 9 | 16s → 28s |
-| **All four** | **$0.512** | **$0.580** | **+13%** | | | |
+| Task | Without | With Engineering OS | Difference | Time without → with |
+| --- | --- | --- | --- | --- |
+| Document every module of a 2,500-line project (big, reading-heavy) | $0.629 | **$0.374** | **−41%** | 80s → 138s |
+| Read and analyse an existing project | $0.347 | **$0.267** | **−23%** | 38s → 190s |
+| Small feature across 3 files | $0.097 | $0.115 | +19% | 16s → 26s |
+| Bug fix with a failing test | $0.100 | $0.101 | +2% | 18s → 21s |
+| Trivial edit (one comment) | $0.089 | $0.092 | +3% | 10s → 11s |
 
-## What the numbers say
+Big and reading-heavy work is now clearly cheaper; small edits cost 2–3% more; a small multi-file feature still costs more because of the plan step. Reading through a Haiku scout is slower in wall-clock time, by about 1.7× for the documentation task and up to 5× for the analysis.
 
-- **Small work costs almost nothing extra** (+3% to +7%): the session summary and a few ledger writes.
-- **The feature cost the most** (+32%). It touched 3 files, so the task was raised from trivial to standard; the gate refused the edit twice until Claude ran `engos profile set` and `engos plan set`. That round trip is 5 extra turns.
-- **No agents were used in any run.** Steps are optional (D47), and for tasks this small Claude did the work itself, so the cheaper-model routing that should save money on large tasks never came into play. This benchmark measures the overhead of the gate and the evidence rules, not the savings from routing.
-- **Analysis** (+12%) is mostly the session summary being re-read on every turn.
+Where the saving comes from, per run (big documentation task with Engineering OS): Sonnet $0.27 for 333k tokens plus Haiku $0.12 for 241k tokens, against Sonnet $0.64 for 611k tokens without it. Haiku read the files; Sonnet worked from its summary.
 
-## Not measured yet
+## How we got there
 
-A large task where the lead plans worker and scout steps, so reading goes to Haiku and scoped work to Sonnet. That is where Engineering OS is expected to save, and it needs a bigger, more expensive run.
+| Round | Change | All tasks, total | Notes |
+| --- | --- | --- | --- |
+| 1 | Phase 6 build | **+13%** (4 small tasks) | The 3-file feature +32%: two refusals, then `profile set` and `plan set`, 5 extra turns. No agents used. |
+| 2 | One command (`engos plan set --kind … --scope-write …`); shorter session summary; empty brief template skipped; "use a scout for heavy reading" hint | **+2%** (5 tasks incl. the big one) | Feature +19% with no refusals (Claude planned first). Big task +8%: Claude still read everything itself, and writing a long doc raised the task to standard. |
+| 3 | Concrete rule in the session summary: before reading more than 5 files, start one `engos:scout` (Haiku) with the file list and what to extract; read a file yourself only to edit it | big task **−41%**, analysis **−23%** | Haiku did the reading in both. The gate stopped the scout once when it tried a command that isn't read-only; it carried on. |
 
-## Ways to lower the overhead
+Baselines without Engineering OS were reused between rounds (same prompts, same model). Two runs per side is a small sample: the analysis baseline alone ranged from $0.16 to $0.42.
 
-1. One command for profile and plan (`engos plan set --kind feature --scope-write …`), so an upgraded task costs one refusal and one command instead of two of each.
-2. A shorter session summary.
-3. When a task is raised, put the exact ready-to-run command in the refusal, so Claude doesn't need a separate turn to look anything up. This is already done; (1) makes it a single line.
+## Still open
+
+- A long documentation file pushes a task over the trivial line budget (40 lines) and makes it `standard`, which costs a plan step for a docs-only change. Not counting lines in docs files is a possible owner decision.
+- Not measured: a large code change with planned worker steps (Sonnet) and a validator.

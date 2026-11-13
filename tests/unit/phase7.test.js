@@ -94,3 +94,26 @@ test('D50: recommendations come only from the official marketplace, fit the proj
   assert.deepStrictEqual(out.groups.skills.map((x) => x.name).slice(0, 2), ['frontend-design', 'code-review']); // by install count
   assert.ok(Rec.recommend(dir, cfg, { error: 'no catalog' }, {}).error);
 });
+
+test('cost: one command sets profile and plan; the refusal names that one command', () => {
+  const dir = project('oneshot');
+  const run = (args) => cp.spawnSync(process.execPath, [CLI].concat(args), { cwd: dir, encoding: 'utf8', env: env() });
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  for (const f of ['a', 'b', 'c']) fs.writeFileSync(path.join(dir, 'src', f + '.js'), '1\n');
+  cp.execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A'], { cwd: dir });
+  cp.execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'x'], { cwd: dir });
+  for (const f of ['a', 'b', 'c']) {
+    const pre = hook('pre-tool-use', dir, { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src', f + '.js') } });
+    if (pre.code === 2) {
+      assert.match(pre.stderr, /engos plan set --kind <bugfix\|feature/);
+      assert.ok(!/profile set/.test(pre.stderr), 'one command, not two');
+      break;
+    }
+    fs.writeFileSync(path.join(dir, 'src', f + '.js'), '2\n' + f.repeat(30) + '\n'.repeat(20));
+    hook('post-tool-use', dir, { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'src', f + '.js') } });
+  }
+  assert.notStrictEqual(run(['plan', 'set', '--scope-write', 'src/**']).status, 0, 'plan without a kind is refused when no profile exists');
+  const r = run(['plan', 'set', '--kind', 'feature', '--scope-write', 'src/**']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Edits can continue/);
+});

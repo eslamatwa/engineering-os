@@ -70,14 +70,13 @@ function sessionStart(core, input) {
   try { require('./engos-status.js').installStatusLine(root); } catch (_) { /* best effort */ }
 
   const lines = [];
-  lines.push('Engineering OS is active in this project (.engos/).');
-  lines.push('Session mode: ' + session.mode + '.');
+  lines.push('Engineering OS is on (.engos/, ' + session.mode + ' mode).');
   if (check.hard.length) lines.push('Read-only because: ' + check.hard.join(' '));
   if (check.warn.length) lines.push('Warnings: ' + check.warn.join(' '));
-  lines.push('How it works: small edits open a trivial task automatically. Bigger or sensitive work needs `engos profile set` and `engos plan set` (run with the Bash tool) before edits continue. Protected files, push, network and destructive commands ask the user through Claude Code\'s own prompt. Every refusal says what is needed. Never try to work around a refusal.');
-  lines.push('Agents: during a task, plan steps with `engos plan set --steps "S1:locate,S2:implement,S3:verify"` (or `engos step add`), then for each step run `engos step brief S2` and call the Agent tool with the subagent_type and model it prints and the brief as the prompt. Only engos:scout, engos:worker, engos:validator, Explore and Plan run during a task; one worker at a time. If a step is routed to Fable, ask the user first as the refusal explains.');
+  lines.push('Small edits need nothing. If a change will touch 3+ files or auth, payments, secrets, migrations or deployment, first run (Bash): engos plan set --kind <kind> --scope-write "<globs>". Prove work with `engos check <name>`. Protected files, push, network, destructive commands and external MCP tools ask the user. Refusals say exactly what to run; never work around one.');
+  lines.push('Save cost: before reading more than 5 files to answer, review or document something, start one engos:scout agent (no model parameter; it runs on Haiku) with the file list and exactly what to extract, and work from its summary instead of reading the files yourself. Read a file yourself only when you are about to edit it. For planned steps run `engos step brief S<n>` and start the agent and model it prints.');
 
-  const brief = briefExcerpt(core, root);
+  const brief = briefExcerpt(core, root); // skipped while it is still the unfilled template
   if (brief) lines.push('Project brief (excerpt):\n' + brief);
 
   const open = core.listTasks(root).filter(core.isOpen);
@@ -104,6 +103,7 @@ function shouldWarn(core, root, warnings) {
 function briefExcerpt(core, root) {
   try {
     const text = fs.readFileSync(core.engosPath(root, 'BRIEF.md'), 'utf8').trim();
+    try { if (text === fs.readFileSync(require('path').join(core.PLUGIN_ROOT, 'templates', 'BRIEF.md'), 'utf8').trim()) return ''; } catch (_) { /* no template */ }
     return text.length > 3000 ? text.slice(0, 3000) + '\n…' : text;
   } catch (_) {
     return '';
@@ -152,9 +152,10 @@ function needsText(task, missing, rel) {
   const needProfile = missing.some((m) => m.startsWith('profile'));
   const needPlan = missing.some((m) => m.startsWith('plan'));
   const scope = rel ? (path.posix.dirname(rel) === '.' ? rel : path.posix.dirname(rel) + '/**') : '<folder>/**';
-  if (needProfile) lines.push('engos profile set --kind <bugfix|feature|refactor|docs|tests|debugging|migration|security_review|architecture|analysis>');
-  if (needPlan) lines.push('engos plan set --scope-write "' + scope + '"   (comma-separate several globs; list every path you will change)');
-  return 'Task ' + task.task_id + ' is ' + task.effective.class + '. Before edits continue, run with the Bash tool: ' + lines.join('  then  ') + '. Add --sensitivity auth (or payments, secrets, data_migration, deployment) to the profile if the request touches those.';
+  const kinds = '<bugfix|feature|refactor|docs|tests|debugging|migration|security_review|architecture|analysis>';
+  if (needPlan) lines.push('engos plan set' + (needProfile ? ' --kind ' + kinds : '') + ' --scope-write "' + scope + '"');
+  else if (needProfile) lines.push('engos profile set --kind ' + kinds);
+  return 'Task ' + task.task_id + ' is ' + task.effective.class + '. Run once with the Bash tool, listing every path you will change (comma-separated globs), then continue: ' + lines.join(' ') + (needProfile ? '. Add --sensitivity auth|payments|secrets|data_migration|deployment if it applies' : '') + '.';
 }
 
 // Ask the person to approve editing one protected file (D46). Approval is recorded in PostToolUse.

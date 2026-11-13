@@ -27,6 +27,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 - **Routing is written down.** Haiku for search and logs, Sonnet for scoped work, Opus for features and security, Fable for architecture, and only after you say yes.
 - **You approve what leaves the repo.** Push, publish, network and destructive commands, external MCP tools, and the first edit of each protected file ask you through Claude Code's own Allow/Deny prompt. Claude's own app tools don't. Every approval is recorded.
 - **Evidence, not narration.** Checks run through `engos check`, which records the real exit code. A task closes only when the required evidence exists.
+- **Cheaper where it counts.** Heavy reading goes to a Haiku scout. Measured against plain Claude Code: a big documentation task cost 41% less and a project analysis 23% less; small edits cost 2–3% more. See `docs/benchmark.md`.
 - **You can always see the agents.** Status line, a live graph (`/engos:view`) and `/engos:status`.
 
 ## Repository map
