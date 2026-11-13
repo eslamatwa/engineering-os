@@ -30,7 +30,7 @@ Status column: **verified** = confirmed in `docs/spike-results.md`; **pending** 
 | H10 | `SubagentStart` | all | Inject role card and step contract; ledger `step.started` | default | built and tested, phase 5; injection verified (P11) |
 | H11 | `SubagentStop` | all | Read report, compare with observed changes; ledger `step.ended`. A bad report is sent back once (`decision: block`). | default | built and tested, phase 5; send-back verified (P12) |
 | H12 | `Stop` | all | Remind about open tasks. No enforcement. | default | assumed |
-| — | Status line | — | Reads `.engos/status.json` written by the hooks above | — | pending (H2 round 3) |
+| — | Status line | — | Reads `.engos/status.json`, rebuilt once per hook or CLI run that wrote to the ledger | — | built and tested, phase 6; terminal verified (H2), Desktop pending (H2b) |
 
 Observer hooks (H7, H8, H9, H11) don't block. If they fail, the evidence they would have recorded is missing, so `engos task close` refuses later. The system still fails closed, just at close time.
 

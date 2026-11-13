@@ -1,5 +1,5 @@
 {
-  "description": "Engineering OS hooks. Phase 5: session self-check, write/Bash/Agent gates, approvals through Claude Code's prompt, change observer, typed human commands, subagent role cards and report checks. See docs/hooks.md.",
+  "description": "Engineering OS hooks. Phase 6: session self-check, write/Bash/Agent gates, approvals through Claude Code's prompt, change observer, typed human commands, subagent role cards and report checks, status picture for the status line and live view. See docs/hooks.md.",
   "hooks": {
     "SessionStart": [
       {

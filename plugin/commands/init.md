@@ -13,11 +13,12 @@ Set up Engineering OS in this project. Follow these steps in order and keep the 
    - **Models:** "Which Claude models does your plan include?" (multi-select: Haiku, Sonnet, Opus, Fable). Default: Haiku, Sonnet, Opus.
    - **Checks:** "Which commands prove the code works?" Look at the project first (package.json scripts, Makefile, pyproject, etc.) and offer the real commands you found for test, lint and build. Let the user edit or skip each one.
    - **Protection:** "Add deny rules to .claude/settings.json so Claude can't edit Engineering OS records directly?" (Yes recommended / No)
+   - **Status line:** "Show what Engineering OS is doing in a status line under the prompt?" (Yes recommended / No). It goes in .claude/settings.local.json, which stays on this machine.
 
 4. Run `engos init` with their answers, for example:
-   `engos init --models haiku,sonnet,opus --check "test=npm test" --check "lint=npm run lint" --deny-rules --git-init`
-   Only pass `--deny-rules` and `--git-init` if the user said yes.
+   `engos init --models haiku,sonnet,opus --check "test=npm test" --check "lint=npm run lint" --deny-rules --status-line --git-init`
+   Only pass `--deny-rules`, `--status-line` and `--git-init` if the user said yes.
 
-5. Show the user what was created, then suggest two things: fill in `.engos/BRIEF.md`, and add their sensitive folders under `protected_paths` in `.engos/config.yaml`. Tell them a new session picks up everything automatically.
+5. Show the user what was created, then suggest two things: fill in `.engos/BRIEF.md`, and add their sensitive folders under `protected_paths` in `.engos/config.yaml`. Tell them a new session picks up everything automatically, and that `/engos:view` opens the live view.
 
 Never edit files under `.engos/` yourself during setup; `engos init` writes them.

@@ -48,7 +48,7 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** C1–C5, C8–C10, D1–D4.
 
-## Phase 6 · Visibility
+## Phase 6 · Visibility — done 2026-11-13 (see docs/phase-results.md; Desktop status line still needs the owner)
 
 - `status.json` written on every event; status line script; `/engos:status`.
 - `/engos:view` page from the ledger, matching the approved mockup. Panels: agent graph, agent details, timeline, evidence, pending approvals, blocked tasks. Read-only: no approve controls.

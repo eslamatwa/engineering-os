@@ -1,5 +1,5 @@
 ---
-description: Show Engineering OS status for this project (mode, open tasks)
+description: Show what Engineering OS is doing now (tasks, agents, checks, what is waiting for you)
 ---
 
-Run `engos doctor` and `engos task status` with the Bash tool, then summarise for the user in a few lines: the session mode (normal or read-only, and why), any warnings, and the open tasks with their class. Don't change anything.
+Run `engos status` with the Bash tool and show the user the result in a few short lines: the session mode, each open task with its class, its steps and agents (model and state), the latest checks, and anything waiting for them (approvals to allow in the session prompt, or a `/engos:decide` they need to type). If `engos status` fails, run `engos doctor` and explain what it says. Don't change anything.

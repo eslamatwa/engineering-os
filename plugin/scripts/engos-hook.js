@@ -67,6 +67,7 @@ function sessionStart(core, input) {
   core.saveSession(root, sessionId, session);
   core.ledger(root, { type: 'session.started', actor: { kind: 'hook' }, session_id: sessionId, source: session.source, mode: session.mode, claude_code_version: session.claude_code_version });
   try { require('./engos-approvals.js').expireStale(root); } catch (_) { /* best effort */ }
+  try { require('./engos-status.js').installStatusLine(root); } catch (_) { /* best effort */ }
 
   const lines = [];
   lines.push('Engineering OS is active in this project (.engos/).');
@@ -723,6 +724,9 @@ function main() {
   let core;
   try {
     core = require('./engos-core.js');
+    process.on('exit', () => { // phase 6: one status rebuild per hook run, only when the ledger changed
+      try { const r = core.dirtyRoot(); if (r) require('./engos-status.js').writeStatus(r); } catch (_) { /* never break the hook */ }
+    });
   } catch (e) {
     if (mode === 'pre-tool-use') block('the plugin files are damaged (' + e.message + '). Reinstall Engineering OS.');
     return;

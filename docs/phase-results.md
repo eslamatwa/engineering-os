@@ -274,3 +274,24 @@ All unit tests: 67 of 67.
 Finding from P5-E2: an unplanned scout was asked for a hypothesis while only listing files. Uncertainty checks (D22) now apply to planned analysis and debugging steps only.
 
 Not run end to end (unit-tested only): Fable ask with a real Fable call, a real model-unavailable failure, three real failed attempts. D1 (no repo) is covered by init (phase 1); unknowns-as-questions is guidance, not code.
+
+## Phase 6 · Visibility (2026-11-13)
+
+Built: `plugin/scripts/engos-status.js` (one status picture, rebuilt at the end of any hook or CLI run that wrote to the ledger), `plugin/scripts/engos-statusline.js` (standalone, copied to `.engos/statusline.js` at session start), `plugin/view/index.html` (live view per the approved mockup, read-only, no external resources), CLI `engos status`, `engos view [--open|--serve]`, `engos init --status-line` (writes `.claude/settings.local.json`), commands `/engos:view` and a fuller `/engos:status`.
+
+### Unit tests (tests/unit/phase6.test.js, 4)
+
+| Scenario | Result |
+| --- | --- |
+| status.json rebuilt by hooks after ledger events; no command output or environment values in it | Pass |
+| E1 · status line shows task, class, lead model, each agent with model and step, attempts, queued steps, approvals; `engos status` prints the same; idle line | Pass |
+| E1/E2 · live view data matches; later events refresh it; the page has no approve/decide controls, sends nothing, loads nothing external; the approval stays pending | Pass |
+| The status line never fails loudly (broken or missing status.json) | Pass |
+
+All unit tests: 71 of 71. Gate overhead over Node start-up (p95): Write 13.4 ms, Bash 5.7 ms (D44 target 30 ms).
+
+### Live view in the Desktop browser pane
+
+Demo project with a scout done, a worker on attempt 2, a failed check and a pending push. Served with `engos view --serve`; checked at desktop and phone width (no horizontal scroll). Ending the worker from a hook updated the page within one refresh, without reloading. Finding (P13): the pane shows `file://` pages as static snapshots, so `/engos:view` uses the local server there.
+
+Still for the owner: the status line in the Desktop app's Code tab (H2b) and E3 (same results in terminal and Desktop).

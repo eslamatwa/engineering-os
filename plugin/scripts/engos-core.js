@@ -81,7 +81,12 @@ function writeJson(file, data) {
 // ---------------------------------------------------------------------------
 // Ledger (append-only; hooks and the CLI only)
 // ---------------------------------------------------------------------------
+// The status picture (phase 6) is rebuilt once per process, after the last ledger append.
+let _dirtyRoot = null;
+function dirtyRoot() { return _dirtyRoot; }
+
 function ledger(root, event) {
+  _dirtyRoot = root;
   const line = JSON.stringify(Object.assign({ at: new Date().toISOString() }, event)) + '\n';
   fs.mkdirSync(engosPath(root, 'sessions'), { recursive: true });
   const file = engosPath(root, 'ledger.jsonl');
@@ -332,6 +337,7 @@ module.exports = {
   readJson,
   writeJson,
   ledger,
+  dirtyRoot,
   parseVersion,
   compareVersions,
   claudeCodeVersion,

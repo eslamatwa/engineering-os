@@ -40,7 +40,7 @@ A `CLAUDE.md` at the plugin root is not loaded as context, so lead guidance live
 | `/engos:class TASK-xxx <class>` | human | Lowers a class (hard gates stay) |
 | `/engos:pause` / `/engos:resume` | human | Turns ceremony off for this session; hard gates stay |
 | `/engos:status` | anyone | Prints mode, open tasks and pending approvals |
-| `/engos:view` | anyone | Opens the live graph page (phase 6) |
+| `/engos:view` | anyone | Opens the live graph page: `engos view --open` (file page), or `engos view --serve` (read-only server on 127.0.0.1:4317) where the browser shows local files as static snapshots |
 
 Approvals have no command: Claude Code's own Allow/Deny prompt asks the user (D46).
 
@@ -53,7 +53,7 @@ One install at user scope serves every project. Each repo has its own `.engos/`,
 ## Visibility (D33)
 
 - **Status line:** one line under the prompt. Reads `.engos/status.json`. Offered per project by `/engos:init` because a plugin can't install it itself. Whether it shows in the Desktop Code tab as well as the terminal is checked in spike round 3.
-- **Live graph:** `/engos:view` opens a local page rebuilt from the ledger on each event. In the Desktop app it opens in the browser pane. Look per `docs/engos-live-view-mockup.html`. Panels in v0.1: agent graph, agent details, event timeline, evidence (checks and their exit codes), pending approvals, blocked tasks with what they need.
+- **Live graph:** `/engos:view` opens `.engos/view/index.html`, which re-reads `.engos/view/status.js` every 2 seconds; the hooks rewrite that file on each ledger event. The Desktop app's browser pane shows `file://` pages as static snapshots (P13), so there the lead starts `engos view --serve`: a local read-only server (127.0.0.1 only, GET only, two files, stops after 8 hours). Look per `docs/engos-live-view-mockup.html`. Panels in v0.1: agent graph, agent details, event timeline, evidence (checks and their exit codes), pending approvals, blocked tasks with what they need.
 - **The page is read-only.** It has no approve buttons. Approvals only count when typed or clicked in the session that asked for them (D34, D35).
 - **Text:** `/engos:status` prints the same picture in chat.
 

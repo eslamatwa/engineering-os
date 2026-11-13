@@ -16,6 +16,8 @@ const GITIGNORE_LINES = [
   '.engos/ledger.jsonl',
   '.engos/status.json',
   '.engos/sessions/',
+  '.engos/view/',
+  '.engos/statusline.js',
 ];
 
 const DENY_RULES = [ // Edit(...) rules cover every file-editing tool; Write(...) rules are not matched
@@ -163,6 +165,21 @@ function cmdInit(args) {
     settings.permissions.deny = Array.from(deny);
     core.writeJson(sf, settings);
     report.push('Added ' + added + ' deny rules to .claude/settings.json.');
+  }
+
+  // Optional status line (only when the user agreed). Machine-specific, so it goes in settings.local.json.
+  if (args['status-line']) {
+    const S = require(path.join(__dirname, 'engos-status.js'));
+    const script = S.installStatusLine(root).replace(/\\/g, '/');
+    const sf = path.join(root, '.claude', 'settings.local.json');
+    const settings = core.readJson(sf, {});
+    if (settings.statusLine && !String(settings.statusLine.command || '').includes('.engos/statusline.js')) {
+      report.push('A status line is already set in .claude/settings.local.json; left unchanged. To use the Engineering OS one, set its command to: node "' + script + '"');
+    } else {
+      settings.statusLine = { type: 'command', command: 'node "' + script + '"' };
+      core.writeJson(sf, settings);
+      report.push('Status line added to .claude/settings.local.json (shows in new sessions).');
+    }
   }
 
   core.ledger(root, { type: 'engos.initialized', actor: { kind: 'cli' }, created, kept, models, checks: Object.keys(checks) });
@@ -654,7 +671,89 @@ function escalateAfterCheck(root, task, r) {
 }
 
 // ---------------------------------------------------------------------------
+// status and view (phase 6, D33)
+// ---------------------------------------------------------------------------
+function cmdStatus() {
+  const root = requireRoot();
+  const S = require(path.join(__dirname, 'engos-status.js'));
+  const L = require(path.join(__dirname, 'engos-statusline.js'));
+  const st = S.writeStatus(root);
+  const sid = sessionId();
+  const plain = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
+  console.log(plain(L.render(st, { session_id: sid })));
+  const sess = sid && st.sessions[sid];
+  if (sess) console.log('Session: ' + sess.mode + (sess.paused ? ', paused' : ''));
+  for (const t of st.tasks) {
+    console.log('');
+    console.log(t.task_id + '  ' + t.class + '  ' + t.status + '  ' + t.summary);
+    if (t.files.count) console.log('  changed: ' + t.files.count + ' files (+' + t.files.added + ' -' + t.files.deleted + '): ' + t.files.list.join(', '));
+    for (const s of t.steps) {
+      const a = t.agents.filter((x) => x.step === s.id).pop();
+      console.log('  ' + s.id + ' ' + s.kind + ' · ' + (s.by === 'lead' ? 'lead' : 'engos:' + s.by) + ' · ' + s.status + (s.by === 'worker' && s.failures ? ' · ' + s.failures + '/' + s.allowed + ' failed' : '') + (a ? ' · ' + L.family(a.model_actual || a.model) + ' ' + a.status : ''));
+    }
+    for (const a of t.agents.filter((x) => !x.step)) console.log('  ' + a.type + ' · ' + L.family(a.model_actual || a.model) + ' · ' + a.status);
+    for (const c of t.checks) console.log('  check ' + c.name + ': ' + (c.passed ? 'passed' : 'failed') + ' (exit ' + c.exit + ')' + (c.before_last_change ? ', before the last change' : ''));
+    for (const r of t.reviews) console.log('  review ' + (r.step || '') + ': ' + r.verdict + (r.refs_ok ? '' : ' (refs unverified)'));
+    if (t.needs_human) console.log('  NEEDS YOU: ' + t.needs_human.reason + '  → /engos:decide ' + t.task_id + ' <' + t.needs_human.options.join('|') + '>');
+    if (t.deep_pending) console.log('  NEEDS YOU: use Fable for ' + t.deep_pending.step + '?  → /engos:decide ' + t.task_id + ' fable|no_fable');
+  }
+  if (!st.tasks.length) console.log('No open tasks.' + (st.last_closed ? ' Last: ' + st.last_closed.task_id + ' closed.' : ''));
+  for (const a of st.approvals) console.log('WAITING FOR APPROVAL: ' + a.approval_id + '  ' + a.action + (a.context && a.context.outgoing_commits && a.context.outgoing_commits.length ? '  (' + a.context.outgoing_commits.length + ' outgoing commits)' : '') + '  → Allow or Deny in the session prompt');
+  if (st.timeline.length) {
+    console.log('');
+    console.log('Recent:');
+    for (const e of st.timeline.slice(0, 8)) console.log('  ' + e.at.slice(11, 16) + '  ' + e.text);
+  }
+}
+
+// A local read-only server for browsers that show file:// pages as static snapshots (the Desktop
+// app's browser pane). Bound to 127.0.0.1, GET only, serves exactly two files, stops after 8 hours.
+function serveView(root, args) {
+  const http = require('http');
+  const S = require(path.join(__dirname, 'engos-status.js'));
+  const viewDir = core.engosPath(root, 'view');
+  const port = Number(args.port) || 4317;
+  const server = http.createServer((req, res) => {
+    const name = String(req.url || '/').split('?')[0];
+    const file = name === '/' || name === '/index.html' ? 'index.html' : name === '/status.js' ? 'status.js' : null;
+    if (req.method !== 'GET' || !file) { res.writeHead(req.method === 'GET' ? 404 : 405); res.end(); return; }
+    try {
+      const body = fs.readFileSync(path.join(viewDir, file));
+      res.writeHead(200, { 'Content-Type': file === 'status.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      res.end(body);
+    } catch (_) { res.writeHead(404); res.end(); }
+  });
+  server.on('error', (e) => fail(e.code === 'EADDRINUSE' ? 'port ' + port + ' is in use. The live view may already be running at http://127.0.0.1:' + port + '/ (or pass --port).' : e.message));
+  server.listen(port, '127.0.0.1', () => {
+    S.writeStatus(root, { view: true });
+    console.log('Live view: http://127.0.0.1:' + port + '/');
+    console.log('Read-only, local to this machine. It refreshes every 2 seconds. Stop it with Ctrl+C; it stops by itself after 8 hours.');
+  });
+  setTimeout(() => process.exit(0), 8 * 60 * 60 * 1000).unref();
+}
+
+function cmdView(args) {
+  const root = requireRoot();
+  const S = require(path.join(__dirname, 'engos-status.js'));
+  const file = S.installView(root);
+  const url = 'file:///' + file.replace(/\\/g, '/').replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/').replace(/^([A-Za-z])%3A/, '$1:');
+  if (args.serve) return serveView(root, args);
+  console.log('Live view: ' + url);
+  console.log('It refreshes every 2 seconds while Engineering OS works. Read-only: approvals happen only in the session.');
+  if (args.open) {
+    try {
+      if (process.platform === 'win32') cp.spawn('cmd', ['/c', 'start', '', file], { detached: true, stdio: 'ignore' }).unref();
+      else cp.spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [file], { detached: true, stdio: 'ignore' }).unref();
+      console.log('Opened in your default browser.');
+    } catch (e) {
+      console.log('Could not open a browser (' + e.message + '). Open the address above yourself.');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 function main() {
+  process.on('exit', () => { try { const r = core.dirtyRoot(); if (r) require(path.join(__dirname, 'engos-status.js')).writeStatus(r); } catch (_) { /* best effort */ } });
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
   switch (cmd) {
@@ -669,12 +768,14 @@ function main() {
     case 'step': return cmdStep(args);
     case 'dispute': return cmdDispute(args);
     case 'facts': return cmdFacts(args);
+    case 'status': return cmdStatus(args);
+    case 'view': return cmdView(args);
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--git-init]\n  doctor\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open]                       write the live view page and print its address\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }
