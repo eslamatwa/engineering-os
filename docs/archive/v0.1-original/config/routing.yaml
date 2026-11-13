@@ -1,0 +1,38 @@
+version: "0.1"
+principles:
+  - start_with_smallest_capable_model
+  - escalate_on_complexity_risk_uncertainty_or_failed_evidence
+  - retain_human_approval_for_irreversible_actions
+models:
+  fast:
+    intended_for: [classification, extraction, log_triage, simple_lookup]
+  balanced:
+    intended_for: [implementation, focused_debugging, test_authoring, documentation]
+  frontier:
+    intended_for: [architecture, complex_debugging, cross_system_reasoning, high_risk_review]
+classification:
+  dimensions: [project_type, task_type, complexity, risk, reversibility, evidence_needed]
+workflows:
+  feature:
+    default_model: balanced
+    roles: [planner, implementer, validator]
+  bugfix:
+    default_model: balanced
+    roles: [triager, implementer, validator]
+  architecture:
+    default_model: frontier
+    roles: [architect, critic, validator]
+  security_audit:
+    default_model: frontier
+    roles: [security_reviewer, evidence_validator]
+  incident_triage:
+    default_model: fast
+    roles: [triager, incident_lead]
+escalation:
+  when:
+    - confidence_below_threshold
+    - conflicting_evidence
+    - cross_system_impact
+    - security_or_privacy_risk
+    - two_failed_validation_attempts
+  action: route_to_frontier_and_require_review

@@ -1,0 +1,464 @@
+<title>Engineering OS User Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: same printed reference sheet as the architecture page — one column, numbered sections because a guide is read in order. */
+:root {
+  --paper: #f5f2ea;
+  --panel: #ece6d9;
+  --panel-2: #f9f7f2;
+  --ink: #1f1c18;
+  --ink-2: #5b5449;
+  --rule: #cfc6b4;
+  --accent: #a2482b;
+  --code: #2f6b57;
+  --code-bg: #dfe9e2;
+  --model-bg: #f2dfd5;
+  --pend: #7a5a12;
+  --pend-bg: #f1e6c8;
+  --term-bg: #1d1b18;
+  --term-ink: #e9e3d6;
+  --term-dim: #9a9282;
+  --f-display: "Newsreader", "Georgia", "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #191714; --panel: #24211c; --panel-2: #1e1c18; --ink: #ece6da; --ink-2: #aaa192;
+    --rule: #3d3830; --accent: #e08a68; --code: #7cc5a8; --code-bg: #1f3029; --model-bg: #3a261d;
+    --pend: #e2b04f; --pend-bg: #352a12; --term-bg: #0f0e0c; --term-ink: #ece6da; --term-dim: #8f877a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #191714; --panel: #24211c; --panel-2: #1e1c18; --ink: #ece6da; --ink-2: #aaa192;
+  --rule: #3d3830; --accent: #e08a68; --code: #7cc5a8; --code-bg: #1f3029; --model-bg: #3a261d;
+  --pend: #e2b04f; --pend-bg: #352a12; --term-bg: #0f0e0c; --term-ink: #ece6da; --term-dim: #8f877a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.topbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
+header.hero { text-align: center; padding-block: 36px 22px; }
+h1 { font-family: var(--f-display); font-weight: 500; font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.sub { font-family: var(--f-display); font-size: clamp(20px, 3vw, 28px); margin: 8px 0 0; font-weight: 500; }
+.sub em { color: var(--accent); font-style: normal; }
+.lede { font-family: var(--f-display); font-style: italic; color: var(--ink-2); font-size: 17px; margin: 12px auto 0; max-width: 62ch; }
+.meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); margin: 8px 0 0; }
+.meta div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.meta div:nth-last-child(-n+2) { border-bottom: 0; }
+.meta dt { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.meta dd { margin: 0; font-size: 14px; }
+.banner { margin-top: 14px; padding: 10px 14px; border: 1px dashed var(--pend); color: var(--pend); background: var(--pend-bg); border-radius: 4px; font-size: 13.5px; }
+nav.toc { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav.toc a { font-family: var(--f-mono); font-size: 12px; color: var(--ink); text-decoration: none; border: 1px solid var(--rule); border-radius: 3px; padding: 3px 8px; background: var(--panel-2); }
+nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+section { border-top: 1px solid var(--rule); padding-top: 26px; margin-top: 30px; scroll-margin-top: 12px; }
+h2 { font-family: var(--f-display); font-weight: 500; font-size: 27px; margin: 0; text-wrap: balance; line-height: 1.2; }
+h2 .n { color: var(--accent); }
+.intro { color: var(--ink-2); margin: 4px 0 18px 26px; max-width: 72ch; }
+h3 { font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; margin: 0 0 10px; color: var(--ink-2); }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 16px 18px; min-width: 0; }
+.panel h3.hot { color: var(--accent); }
+.panel p { margin: 0; }
+.panel p + p { margin-top: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+pre, code { font-family: var(--f-mono); }
+pre { margin: 0; font-size: 12.5px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+code { font-size: .88em; background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+.panel code { background: var(--panel-2); }
+.k { color: var(--accent); }
+.c { color: var(--ink-2); }
+.term { background: var(--term-bg); color: var(--term-ink); border-radius: 6px; padding: 12px 14px; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+.term .d { color: var(--term-dim); }
+.term .a { color: #e8a07f; }
+.term .g { color: #7cc5a8; }
+.term .y { color: #e2b04f; }
+.term .b { color: #8fb3ff; }
+ul.dash { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.dash li { padding-left: 16px; position: relative; }
+ul.dash li::before { content: "–"; position: absolute; left: 0; color: var(--ink-2); }
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 0; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+ol.steps li:last-child { border-bottom: 0; }
+ol.steps li::before { content: counter(s); font-family: var(--f-mono); font-size: 12px; color: var(--accent); padding-top: 2px; }
+.tag { display: inline-block; font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+.tag.code { background: var(--code-bg); color: var(--code); }
+.tag.model { background: var(--model-bg); color: var(--accent); }
+.tag.human { background: var(--ink); color: var(--paper); }
+.tag.pend { background: var(--pend-bg); color: var(--pend); }
+.note { margin-top: 14px; background: var(--panel); border-radius: 4px; padding: 12px 16px; font-size: 14px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 620px; }
+th { text-align: left; font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; border-bottom: 1px solid var(--ink); padding: 8px 10px; }
+td { border-bottom: 1px solid var(--rule); padding: 9px 10px; vertical-align: top; }
+td:first-child { font-weight: 600; }
+.ladder { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.rung { padding: 12px 14px; background: var(--panel-2); border-right: 1px solid var(--rule); display: grid; gap: 4px; align-content: start; }
+.rung:last-child { border-right: 0; background: var(--model-bg); }
+.rung b { font-family: var(--f-mono); font-size: 13px; }
+.rung i { font-style: normal; font-size: 12.5px; color: var(--ink); }
+.rung span { font-size: 12.5px; color: var(--ink-2); }
+.take { margin-top: 36px; border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; display: grid; grid-template-columns: 200px 1fr; }
+.take .lbl { font-family: var(--f-display); font-weight: 600; letter-spacing: .2em; text-transform: uppercase; font-size: 14px; display: grid; place-items: center; border-right: 1px solid var(--rule); padding: 18px; text-align: center; }
+.take ul { margin: 0; padding: 18px 22px; list-style: none; display: grid; gap: 8px; }
+.take li { padding-left: 18px; position: relative; }
+.take li::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; background: var(--accent); }
+footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); text-align: center; }
+@media (max-width: 820px) {
+  .ladder { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .rung:nth-child(2) { border-right: 0; }
+  .rung:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+  .grid3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .grid2, .meta { grid-template-columns: 1fr; }
+  .meta div:nth-last-child(2) { border-bottom: 1px solid var(--rule); }
+  .take { grid-template-columns: 1fr; }
+  .take .lbl { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .intro { margin-left: 0; }
+}
+</style>
+
+<div class="wrap">
+  <div class="topbar"><span>User guide / v0.1</span><span>Engineering OS for Claude Code</span></div>
+
+  <header class="hero">
+    <h1>Engineering OS</h1>
+    <p class="sub">How to <em>work with it</em>, day to day</p>
+    <p class="lede">Install once, set up each project once, then keep working the way you already do. It steps in only when a change is risky, something is about to leave your machine, or work claims to be done without proof.</p>
+  </header>
+
+  <dl class="meta">
+    <div><dt>Works in</dt><dd>Terminal, Desktop Code tab, VS Code and JetBrains, phone via Remote Control</dd></div>
+    <div><dt>Doesn't work in</dt><dd>Desktop Chat tab, claude.ai, Cowork</dd></div>
+    <div><dt>You need</dt><dd>Claude Code with fail-closed hooks, Node, a git repo</dd></div>
+    <div><dt>Protects against</dt><dd>Mistakes and injected instructions. Not a sandbox.</dd></div>
+  </dl>
+  <p class="banner">This guide describes v0.1 as designed. The plugin isn't built yet, so commands and screens may change slightly before release.</p>
+  <p style="text-align:center;margin:10px 0 0;font-size:13.5px"><a href="https://claude.ai/artifact/SEzgkoSELny1Aspudh8ZT5" style="color:var(--accent)" lang="ar" dir="rtl">النسخة العربية</a></p>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#install">1 Install</a><a href="#setup">2 Set up a project</a><a href="#work">3 Work as usual</a><a href="#approve">4 Approvals</a><a href="#fable">5 Fable</a><a href="#watch">6 Watching agents</a><a href="#blocked">7 Blocked tasks</a><a href="#tune">8 Tuning</a><a href="#commands">9 Commands</a><a href="#pause">10 Pause</a><a href="#limits">11 Limits</a><a href="#trouble">12 Troubleshooting</a>
+  </nav>
+
+  <!-- 1 -->
+  <section id="install">
+    <h2><span class="n">1.</span> Install Once</h2>
+    <p class="intro">One install at user level serves every project on your machine.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Check first</h3>
+        <ul class="dash">
+          <li><b>Claude Code</b> recent enough to support fail-closed hooks. Tested on 2.1.321.</li>
+          <li><b>Node</b> on your PATH. The hooks are a small Node script with no dependencies.</li>
+          <li><b>git</b>. Edits are only allowed inside a git repo.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Install</h3>
+<pre><span class="c"># inside Claude Code</span>
+/plugin marketplace add &lt;marketplace&gt;
+/plugin install engos@&lt;marketplace&gt;</pre>
+        <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">The marketplace name is set when the plugin is published.</p>
+      </div>
+    </div>
+    <p class="note">If Node is missing or Claude Code is too old, Engineering OS doesn't fail silently. It blocks edits and tells you what to install or update.</p>
+  </section>
+
+  <!-- 2 -->
+  <section id="setup">
+    <h2><span class="n">2.</span> Set Up a Project</h2>
+    <p class="intro">Open the project in Claude Code and run <code>/engos:init</code>. It asks a few questions and writes a small <code>.engos/</code> folder.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>What it asks</h3>
+        <ol class="steps">
+          <li><span><b>No git?</b> It offers <code>git init</code>. Say no and the project stays read-only.</span></li>
+          <li><span><b>Which models do you have?</b> Haiku, Sonnet, Opus, Fable. Saved so it never routes to one you don't have.</span></li>
+          <li><span><b>How do you run checks?</b> Your test, lint and build commands. Only these count as proof.</span></li>
+          <li><span><b>Extra protection?</b> Optional deny rules and the status line for this project. Your choice.</span></li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3 class="hot">What it writes</h3>
+<pre>.engos/
+├── config.yaml   <span class="c"># committed: your settings</span>
+├── BRIEF.md      <span class="c"># committed: goal, constraints</span>
+├── STATE.yaml    <span class="c"># committed: facts, decisions</span>
+├── tasks/        <span class="c"># local only</span>
+├── approvals/    <span class="c"># local only</span>
+└── ledger.jsonl  <span class="c"># local only</span></pre>
+        <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">Local-only files are added to <code>.gitignore</code> for you.</p>
+      </div>
+    </div>
+    <p class="note">Spend two minutes on <code>BRIEF.md</code> and on the sensitive folders in <code>config.yaml</code>. Protected paths are the strongest protection you have; section 8 shows how.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="work">
+    <h2><span class="n">3.</span> Work as Usual</h2>
+    <p class="intro">You don't choose a mode. Ask for what you want; the size of the work decides how much process it gets, and it can only go up.</p>
+    <div class="ladder">
+      <div class="rung"><b>question</b><i>"Where is the session timeout set?"</i><span>Answered directly. Nothing recorded.</span></div>
+      <div class="rung"><b>trivial_edit</b><i>"Rename tmp to buffer in io.py"</i><span>Done by the main session. You see the diff and the test result.</span></div>
+      <div class="rung"><b>standard</b><i>"Fix the bug where expiry doesn't refresh"</i><span>A plan, a worker agent, checks recorded, a short review.</span></div>
+      <div class="rung"><b>high_risk</b><i>"Change the login timeout"</i><span>Touches <code>auth/</code>: you approve the files first and confirm at the end.</span></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel">
+        <h3>What moves a task up</h3>
+        <ul class="dash">
+          <li>Touching a protected folder like <code>auth/</code>, <code>migrations/</code> or <code>.env</code>.</li>
+          <li>Going past a small edit: more than 2 files or 40 lines.</li>
+          <li>Sensitive requests, in any language: auth, payments, secrets, migrations, deployment.</li>
+          <li>Unknown commands are watched; in a high_risk task they need your approval.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3 class="hot">What you'll see when it steps in</h3>
+<pre><span class="k">Edit blocked:</span> src/auth/session.ts is a
+protected path. This task is now high_risk.
+Approve editing these files for this task?
+  src/auth/session.ts
+Type: /engos:approve APR-3c91a0e2</pre>
+      </div>
+    </div>
+    <p class="note">A task only closes when the required proof exists: checks run through <code>engos check</code> after the last edit, the changed files are inside the plan, and the remaining risk is written down. "It works" from the model is not proof.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="approve">
+    <h2><span class="n">4.</span> When You're Asked to Approve</h2>
+    <p class="intro">Anything that leaves your machine or touches a protected folder waits for you. You always see the exact command, never a summary of it.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Kind</th><th>When</th><th>How you answer</th><th>Lasts</th></tr></thead>
+        <tbody>
+          <tr><td>Single action</td><td>push, publish, network call, delete, unknown command in a high_risk task</td><td>Click Allow or Deny in Claude Code's own prompt</td><td>Once, 1 hour, dies on a new commit</td></tr>
+          <tr><td>Protected files</td><td>Editing a protected folder for one task</td><td>Type <code>/engos:approve APR-…</code></td><td>Until the task closes, max 24 hours</td></tr>
+          <tr><td>Decision</td><td>A task is blocked or there's a disagreement</td><td>Type <code>/engos:decide DEC-… &lt;option&gt;</code></td><td>That decision only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="term"><span class="d">Claude wants to run:</span>
+<span class="a">git push origin fix/session-refresh</span>
+<span class="d">branch</span>   fix/session-refresh
+<span class="d">commits</span>  4e1a9c0 Refresh expiry on activity
+         7b2d113 Add refresh test
+<span class="d">approval</span> APR-9f2c41d7 · once · expires 11:06
+
+<span class="g">[ Allow ]</span>  <span class="y">[ Deny ]</span></div>
+      <div class="panel">
+        <h3>Good to know</h3>
+        <ul class="dash">
+          <li>In bypass or auto permission mode the click prompt isn't trusted, so you'll be asked to type <code>/engos:approve</code> instead.</li>
+          <li>Type approvals in the same session that asked. An approval from another session, a script, or after the session was resumed doesn't count.</li>
+          <li>Deny something and it won't be asked again unchanged in the same task.</li>
+          <li>Running headless or in CI? Anything that needs approval is refused.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="fable">
+    <h2><span class="n">5.</span> When It Asks About Fable</h2>
+    <p class="intro">Fable is for the hardest work, like architecture and migrations, and not every plan includes it. So it's never used without your yes.</p>
+    <div class="grid2">
+      <div class="term"><span class="b">This task is a good fit for Fable.</span>
+<span class="d">Moving sessions to tokens touches 14 files</span>
+<span class="d">across 3 services and needs a data migration.</span>
+<span class="d">If your plan doesn't include Fable, I'll use Opus.</span>
+
+<span class="y">[ Use Fable ]</span>  <span class="d">[ Use Opus ]</span></div>
+      <div class="panel">
+        <h3>How it works</h3>
+        <ul class="dash">
+          <li>Asked per task, and your answer is recorded.</li>
+          <li>If a model turns out to be unavailable, the step drops one tier and you're told.</li>
+          <li>After 3 failed attempts a task stops; Fable then appears only as one of the options you can pick.</li>
+          <li>Want to be asked before Opus too? Add it to <code>ask_first</code> in <code>config.yaml</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="watch">
+    <h2><span class="n">6.</span> Watching the Agents</h2>
+    <p class="intro">Agents run in the background, so there are three ways to see what they're doing.</p>
+    <div class="term"><span class="d">◆ engos</span>  TASK-012 standard │ <span class="b">lead opus</span> │ <span class="g">scout ✓</span> │ <span class="b">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="y">⚠ 1 approval</span></div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="panel"><h3 class="hot">Status line</h3><p>Always under the prompt: task, class, each agent with its model and step, attempts, approvals waiting.</p></div>
+      <div class="panel"><h3 class="hot">/engos:view</h3><p>A live graph of the agents with a timeline, the proof collected, pending approvals and blocked tasks. In the Desktop app it opens beside the chat. It's view-only and can't approve anything.</p></div>
+      <div class="panel"><h3 class="hot">/engos:status</h3><p>The same picture as text in the chat. Handy from your phone through Remote Control.</p></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="blocked">
+    <h2><span class="n">7.</span> When a Task Gets Blocked</h2>
+    <p class="intro">A step gets three attempts: the first, a retry with the exact failure, then one stronger model. If it still fails, it stops and hands you the choice.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>What you get</h3>
+<pre><span class="k">DEC-004</span> · TASK-012 blocked after 3 attempts
+tried   sonnet, sonnet, opus · AC-1 failed
+state   2 files changed · lint passes · test fails
+options
+  a  one more attempt on Fable
+  b  amend AC-1: the test asserts old behaviour
+  c  stop; keep the diff on the branch
+lead recommends  b</pre>
+      </div>
+      <div class="panel">
+        <h3 class="hot">How to answer</h3>
+<pre>/engos:decide DEC-004 b</pre>
+        <p style="margin-top:12px">You also decide when a script changed a protected file, when the worker and reviewer disagree on a high_risk task, and on any security finding of medium or higher.</p>
+        <p>Environment problems, like a missing tool, don't use up attempts. Two in a row come to you.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="tune">
+    <h2><span class="n">8.</span> Tuning a Project</h2>
+    <p class="intro">Everything lives in <code>.engos/config.yaml</code>. You can add protection and tighten limits. You can't remove the built-in safety rules.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>.engos/config.yaml</h3>
+<pre><span class="k">models:</span>
+  available: [haiku, sonnet, opus]
+  ask_first: [deep]
+<span class="k">checks:</span>                <span class="c"># the only proof that counts</span>
+  test: "npm test"
+  lint: "npm run lint"
+<span class="k">protected_paths:</span>
+  high_risk:
+    - "src/billing/**"   <span class="c"># your sensitive code</span>
+<span class="k">known_commands:</span>        <span class="c"># never need approval</span>
+  - "npm run build"</pre>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Worth doing on day one</h3>
+        <ul class="dash">
+          <li><b>Add your sensitive folders.</b> Code can't judge meaning. A pricing rule in an ordinary file is only protected if you list it.</li>
+          <li><b>Set real check commands.</b> Without them, small edits close with "no checks configured" noted.</li>
+          <li><b>List the commands you run all the time</b> so high_risk tasks don't ask about them.</li>
+          <li><b>Fill in BRIEF.md.</b> Agents read it at the start of every session.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="commands">
+    <h2><span class="n">9.</span> Commands</h2>
+    <p class="intro">Commands marked "you" only count when you type them yourself.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Command</th><th>Who</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>/engos:init</code></td><td>you</td><td>Set up the current project</td></tr>
+          <tr><td><code>/engos:approve APR-…</code></td><td>you</td><td>Approve a pending request from this session</td></tr>
+          <tr><td><code>/engos:reject APR-…</code></td><td>you</td><td>Reject it</td></tr>
+          <tr><td><code>/engos:decide DEC-… x</code></td><td>you</td><td>Pick an option for a blocked task or dispute</td></tr>
+          <tr><td><code>/engos:class TASK-… standard</code></td><td>you</td><td>Lower a task's class. Built-in safety rules stay.</td></tr>
+          <tr><td><code>/engos:task &lt;summary&gt;</code></td><td>you or Claude</td><td>Open a task now instead of waiting for the first edit</td></tr>
+          <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>you</td><td>Turn the extra process off or on for this session</td></tr>
+          <tr><td><code>/engos:status</code></td><td>anyone</td><td>Show the current task and agents as text</td></tr>
+          <tr><td><code>/engos:view</code></td><td>anyone</td><td>Open the live graph</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section id="pause">
+    <h2><span class="n">10.</span> Pausing It</h2>
+    <p class="intro">For quick hacking where plans and reviews get in the way.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>/engos:pause turns off</h3>
+        <ul class="dash">
+          <li>Automatic tasks and classes</li>
+          <li>Plans and reviews</li>
+          <li>The proof check at the end</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Still on, always</h3>
+        <ul class="dash">
+          <li>Your approval for push, publish, network and deletes</li>
+          <li>The built-in no-go files: approvals, ledger, Claude settings, hooks</li>
+          <li>No production deploys</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">A pause lasts for the current session only. The next session starts with everything on again.</p>
+  </section>
+
+  <!-- 11 -->
+  <section id="limits">
+    <h2><span class="n">11.</span> What It Won't Do</h2>
+    <p class="intro">Knowing the limits is part of using it well.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Not a sandbox</h3>
+        <p>It prevents common mistakes and detects indirect changes inside the repo after they happen. A model deliberately working around it, or a script changing files outside the repo, isn't stopped.</p>
+      </div>
+      <div class="panel">
+        <h3>Not for servers yet</h3>
+        <p>v0.1 works on code inside a git repo. It reads logs you give it but doesn't connect to servers, run commands on them, or deploy to production. That's planned for a later version.</p>
+      </div>
+      <div class="panel">
+        <h3>No cost numbers</h3>
+        <p>It records which model ran, how long and how many tool calls, but not token cost. Claude Code doesn't give that to plugins.</p>
+      </div>
+      <div class="panel">
+        <h3>Your approval is final</h3>
+        <p>It shows you the exact command, but if you approve something harmful, it runs. Read the command, not the explanation.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section id="trouble">
+    <h2><span class="n">12.</span> Troubleshooting</h2>
+    <p class="intro">Every refusal comes with a reason. These are the common ones.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>You see</th><th>Why</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td>Every edit is blocked</td><td>Node missing, Claude Code too old, or <code>.engos/config.yaml</code> broken. The session is in safe read-only mode.</td><td>Follow the message: install Node, update Claude Code, or fix the config.</td></tr>
+          <tr><td>"Not a git repo"</td><td>Edits need git.</td><td>Run <code>git init</code> or accept it in <code>/engos:init</code>.</td></tr>
+          <tr><td>"Protected path"</td><td>The file matches a protected folder.</td><td>Approve the files for this task when asked.</td></tr>
+          <tr><td>"Outside the plan's scope"</td><td>The change touches files the plan didn't list.</td><td>Let Claude widen the scope (twice per task), or approve a decision.</td></tr>
+          <tr><td>My approval was ignored</td><td>Typed in another session, after a resume, or expired.</td><td>Approve again in the session that's asking.</td></tr>
+          <tr><td>Tests passed but the task won't close</td><td>They weren't run through <code>engos check</code>, or ran before the last edit.</td><td>Ask Claude to run <code>engos check test</code> again.</td></tr>
+          <tr><td>No status line in the Desktop app</td><td>The status line may be terminal-only.</td><td>Use <code>/engos:view</code>; it opens beside the chat.</td></tr>
+          <tr><td>It keeps asking about a command</td><td>Unknown commands need approval in high_risk tasks.</td><td>Add it to <code>known_commands</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="take">
+    <div class="lbl">In short</div>
+    <ul>
+      <li>Install once, run <code>/engos:init</code> in each project, then work normally.</li>
+      <li>Small work stays fast; risky work gets a plan, a review and your approval.</li>
+      <li>You always see the exact command before anything leaves your machine.</li>
+      <li>Protect your sensitive folders in <code>config.yaml</code>; it's your strongest setting.</li>
+      <li>Watch the agents with the status line, <code>/engos:view</code> or <code>/engos:status</code>.</li>
+    </ul>
+  </div>
+
+  <footer>Engineering OS · user guide for v0.1 as designed · decisions D1–D39 in docs/decisions.md</footer>
+</div>

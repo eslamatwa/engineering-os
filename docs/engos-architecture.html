@@ -1,0 +1,565 @@
+<title>Claude Engineering OS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a printed engineering reference sheet — single column, numbered sections because the page reads as a build order. */
+:root {
+  --paper: #f5f2ea;
+  --panel: #ece6d9;
+  --panel-2: #f9f7f2;
+  --ink: #1f1c18;
+  --ink-2: #5b5449;
+  --rule: #cfc6b4;
+  --accent: #a2482b;
+  --code: #2f6b57;
+  --code-bg: #dfe9e2;
+  --model-bg: #f2dfd5;
+  --pend: #7a5a12;
+  --pend-bg: #f1e6c8;
+  --f-display: "Newsreader", "Georgia", "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #191714; --panel: #24211c; --panel-2: #1e1c18; --ink: #ece6da; --ink-2: #aaa192;
+    --rule: #3d3830; --accent: #e08a68; --code: #7cc5a8; --code-bg: #1f3029; --model-bg: #3a261d;
+    --pend: #e2b04f; --pend-bg: #352a12;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #191714; --panel: #24211c; --panel-2: #1e1c18; --ink: #ece6da; --ink-2: #aaa192;
+  --rule: #3d3830; --accent: #e08a68; --code: #7cc5a8; --code-bg: #1f3029; --model-bg: #3a261d;
+  --pend: #e2b04f; --pend-bg: #352a12;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+.topbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--ink); padding-bottom: 10px; }
+header.hero { text-align: center; padding-block: 36px 22px; }
+h1 { font-family: var(--f-display); font-weight: 500; font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.sub { font-family: var(--f-display); font-size: clamp(20px, 3vw, 28px); margin: 8px 0 0; font-weight: 500; }
+.sub em { color: var(--accent); font-style: normal; }
+.lede { font-family: var(--f-display); font-style: italic; color: var(--ink-2); font-size: 17px; margin: 12px auto 0; max-width: 62ch; }
+.meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); margin: 8px 0 0; }
+.meta div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.meta div:nth-last-child(-n+2) { border-bottom: 0; }
+.meta dt { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.meta dd { margin: 0; font-size: 14px; }
+.status { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink-2); margin-top: 14px; }
+section { border-top: 1px solid var(--rule); padding-top: 26px; margin-top: 30px; }
+h2 { font-family: var(--f-display); font-weight: 500; font-size: 27px; margin: 0; text-wrap: balance; line-height: 1.2; }
+h2 .n { color: var(--accent); }
+.intro { color: var(--ink-2); margin: 4px 0 18px 26px; max-width: 72ch; }
+h3 { font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; margin: 0 0 10px; color: var(--ink-2); }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 16px 18px; min-width: 0; }
+.panel h3.hot { color: var(--accent); }
+.panel p { margin: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+pre, code { font-family: var(--f-mono); }
+pre { margin: 0; font-size: 12.5px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+code { font-size: .88em; background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+.panel code { background: var(--panel-2); }
+.k { color: var(--accent); }
+.c { color: var(--ink-2); }
+.g { color: var(--code); }
+ul.dash { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.dash li { padding-left: 16px; position: relative; }
+ul.dash li::before { content: "–"; position: absolute; left: 0; color: var(--ink-2); }
+.verdict { margin-top: 16px; padding: 14px 18px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--panel-2); font-family: var(--f-display); font-size: 18px; }
+.verdict b { color: var(--accent); font-weight: 600; }
+.tag { display: inline-block; font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+.tag.code { background: var(--code-bg); color: var(--code); }
+.tag.model { background: var(--model-bg); color: var(--accent); }
+.tag.human { background: var(--ink); color: var(--paper); }
+.tag.pend { background: var(--pend-bg); color: var(--pend); }
+.tag.ok { border: 1px solid var(--ink-2); color: var(--ink-2); }
+/* pipeline */
+.flow { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); align-items: stretch; }
+.step { position: relative; padding: 0 6px; display: flex; }
+.step .box { flex: 1; border: 1px solid var(--ink-2); border-radius: 4px; padding: 12px 8px 10px; text-align: center; background: var(--panel-2); display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.step:first-child .box { border: 1.5px solid var(--ink); }
+.step + .step::before { content: "→"; position: absolute; left: -7px; top: 34%; color: var(--ink-2); font-size: 14px; }
+.step .num { font-family: var(--f-mono); font-size: 10px; color: var(--ink-2); }
+.step .name { font-family: var(--f-display); font-weight: 600; font-size: 16px; line-height: 1.15; }
+.step .what { font-size: 12px; color: var(--ink-2); line-height: 1.4; }
+.gatebar { margin: 12px 6px 0; border: 1.5px dashed var(--code); border-radius: 4px; padding: 8px 12px; font-size: 13px; color: var(--code); text-align: center; }
+.note { margin-top: 14px; background: var(--panel); border-radius: 4px; padding: 12px 16px; font-size: 14px; }
+/* tables */
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 620px; }
+th { text-align: left; font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; border-bottom: 1px solid var(--ink); padding: 8px 10px; }
+td { border-bottom: 1px solid var(--rule); padding: 9px 10px; vertical-align: top; }
+td:first-child { font-weight: 600; }
+/* tiers */
+.tiers { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+.tier { border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; background: var(--panel-2); }
+.tier.def { border: 1.5px solid var(--ink); }
+.tier b { font-family: var(--f-display); font-size: 17px; font-weight: 600; display: block; }
+.tier .t { font-family: var(--f-mono); font-size: 11px; color: var(--accent); }
+.tier p { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+/* sequence */
+.seq { padding: 0; margin: 0; display: grid; counter-reset: s; }
+.seq li { list-style: none; display: grid; grid-template-columns: 26px 70px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.seq li::before { counter-increment: s; content: counter(s); font-family: var(--f-mono); font-size: 12px; color: var(--accent); }
+/* ratchet */
+.ladder { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.rung { padding: 12px 14px; background: var(--panel-2); border-right: 1px solid var(--rule); }
+.rung:last-child { border-right: 0; background: var(--model-bg); }
+.rung b { font-family: var(--f-mono); font-size: 13px; display: block; }
+.rung span { font-size: 12.5px; color: var(--ink-2); }
+ol.plain { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.open { padding: 0; margin: 0; }
+.open li { padding: 12px 0; border-bottom: 1px solid var(--rule); list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.open li b { font-family: var(--f-display); font-size: 17px; font-weight: 600; }
+.open li p { margin: 0; color: var(--ink-2); font-size: 14px; grid-column: 1 / -1; }
+.take { margin-top: 36px; border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; display: grid; grid-template-columns: 200px 1fr; }
+.take .lbl { font-family: var(--f-display); font-weight: 600; letter-spacing: .2em; text-transform: uppercase; font-size: 14px; display: grid; place-items: center; border-right: 1px solid var(--rule); padding: 18px; text-align: center; }
+.take ul { margin: 0; padding: 18px 22px; list-style: none; display: grid; gap: 8px; }
+.take li { padding-left: 18px; position: relative; }
+.take li::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; background: var(--accent); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--ink-2); align-items: center; }
+footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); text-align: center; }
+@media (max-width: 820px) {
+  .flow { grid-template-columns: 1fr; gap: 10px; }
+  .step + .step::before { content: "↓"; left: 50%; top: -15px; transform: translateX(-50%); }
+  .step .box { flex-direction: row; text-align: left; gap: 12px; flex-wrap: wrap; }
+  .tiers, .ladder { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .rung:nth-child(2) { border-right: 0; }
+  .rung:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+  .grid3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .grid2, .meta { grid-template-columns: 1fr; }
+  .meta div:nth-last-child(2) { border-bottom: 1px solid var(--rule); }
+  .take { grid-template-columns: 1fr; }
+  .take .lbl { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .seq li { grid-template-columns: 22px 1fr; }
+  .seq li > span:last-child { grid-column: 2; }
+  .intro { margin-left: 0; }
+}
+</style>
+
+<div class="wrap">
+  <div class="topbar"><span>Design review / v0.1 draft 2</span><span>Plugin architecture</span></div>
+
+  <header class="hero">
+    <h1>Claude Engineering OS</h1>
+    <p class="sub">A <em>Claude Code plugin</em> that catches mistakes before they land</p>
+    <p class="lede">Classify each request from what the code actually touches, route every step to the right model, block what policy forbids, and accept nothing as done without recorded evidence.</p>
+  </header>
+
+  <dl class="meta">
+    <div><dt>Ships as</dt><dd>Claude Code plugin: skills, subagents, hooks, commands</dd></div>
+    <div><dt>Runtime</dt><dd>Claude only. No provider adapters.</dd></div>
+    <div><dt>Scope v0.1</dt><dd>Code inside the repo. Logs are analysed, not fetched from servers.</dd></div>
+    <div><dt>Protects against</dt><dd>Mistakes and injected instructions. Not a sandbox.</dd></div>
+  </dl>
+  <div class="status"><span class="tag ok">agreed</span> decided with the owner <span class="tag pend">proposed</span> from the review, waiting for a decision</div>
+
+  <!-- 1 -->
+  <section>
+    <h2><span class="n">1.</span> Plugin, Not a Skill</h2>
+    <p class="intro">A skill can tell Claude what to do. Only a plugin can stop a tool call that breaks the rules.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Skill only</h3>
+        <ul class="dash">
+          <li>Instructions loaded into context when relevant.</li>
+          <li>Rules are requests. The model can skip or misread them.</li>
+          <li>No hooks: no gate, no approval capture, no ledger.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Plugin</h3>
+        <ul class="dash">
+          <li>Skills, subagents, commands and hooks in one install.</li>
+          <li>Hooks run as code on matching tool calls.</li>
+          <li>Can't ship permission rules itself, so <code>/engos:init</code> offers them for the project.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="verdict">Skills carry the know-how. <b>Hooks carry the guarantees.</b></p>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <h2><span class="n">2.</span> Threat Model</h2>
+    <p class="intro">Decided: the plugin guards against honest mistakes and a model misled by text it read. It does not try to contain a model that is deliberately working around it.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3 class="hot">In scope</h3>
+        <ul class="dash">
+          <li>Editing a sensitive file while thinking the change is trivial.</li>
+          <li>Pushing, publishing or deleting without asking.</li>
+          <li>Claiming "tests pass" without running them.</li>
+          <li>Following instructions planted in a README, log or web page.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Out of scope for v0.1</h3>
+        <ul class="dash">
+          <li>A model deliberately writing protected files through scripts.</li>
+          <li>Anything outside the repo that Bash touches indirectly.</li>
+          <li>OS sandbox, tamper-proof ledger, confirmation codes.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">The README states this plainly: the plugin prevents common mistakes and detects indirect changes inside the repo after they happen. It is not a sandbox.</p>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <h2><span class="n">3.</span> Two Layers: Product and Project</h2>
+    <p class="intro">The plugin is the same for everyone. Each repo gets its own <code>.engos/</code> folder.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>The plugin · you maintain it</h3>
+<pre>engos/
+├── .claude-plugin/plugin.json
+├── skills/
+│   ├── intake/   plan/   run/
+│   ├── validate/ status/
+│   └── roles/        <span class="c"># cards, kept short</span>
+├── agents/           <span class="c"># 3 files</span>
+│   ├── scout.md      <span class="c"># read-only, fast tier</span>
+│   ├── worker.md     <span class="c"># tier set per call</span>
+│   └── validator.md  <span class="c"># no Edit / Write</span>
+├── commands/
+│   init · approve · reject · pause · resume
+├── hooks/hooks.json
+├── bin/engos         <span class="c"># state changes go here</span>
+├── scripts/  gate · classify · observe · ledger
+└── defaults/ rules.yaml · policies.yaml</pre>
+      </div>
+      <div class="panel">
+        <h3 class="hot">.engos/ · in the user's repo</h3>
+<pre>.engos/
+├── config.yaml     <span class="c"># checks, protected paths</span>
+├── BRIEF.md
+├── STATE.yaml      <span class="c"># facts vs assumptions</span>
+├── tasks/          <span class="g"># gitignored</span>
+│   └── TASK-012/
+│       ├── profile.yaml
+│       ├── plan.md
+│       └── S2.report.yaml
+├── approvals/      <span class="g"># gitignored, gate writes</span>
+│   └── APR-9f2c41d7.yaml
+└── ledger.jsonl    <span class="g"># gitignored, hooks write</span></pre>
+        <p style="margin-top:12px;font-size:13px;color:var(--ink-2)">Committed: <code>config.yaml</code>, <code>BRIEF.md</code>, <code>STATE.yaml</code>. Everything else is local. State files change only through <code>engos</code> commands, never by hand-editing YAML.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <h2><span class="n">4.</span> The Flow</h2>
+    <p class="intro">The lead session plans and talks to the human. Subagents do the heavy steps. Code decides class, tier and what's allowed.</p>
+    <div class="legend"><span class="tag code">code</span> script or hook <span class="tag model">model</span> Claude decides</div>
+    <div class="flow">
+      <div class="step"><div class="box"><span class="num">01</span><span class="name">Request</span><span class="what">Nothing happens until something changes</span><span class="tag model">lead</span></div></div>
+      <div class="step"><div class="box"><span class="num">02</span><span class="name">Classify</span><span class="what">Highest of declared and observed</span><span class="tag code">code</span></div></div>
+      <div class="step"><div class="box"><span class="num">03</span><span class="name">Route</span><span class="what">Rule table → tier and roles</span><span class="tag code">code</span></div></div>
+      <div class="step"><div class="box"><span class="num">04</span><span class="name">Plan</span><span class="what">Steps, scope, acceptance</span><span class="tag model">lead</span></div></div>
+      <div class="step"><div class="box"><span class="num">05</span><span class="name">Execute</span><span class="what">Worker on routed tier</span><span class="tag model">worker</span></div></div>
+      <div class="step"><div class="box"><span class="num">06</span><span class="name">Verify</span><span class="what">Checks by code, judgement by validator</span><span class="tag code">code</span><span class="tag model">validator</span></div></div>
+      <div class="step"><div class="box"><span class="num">07</span><span class="name">Close</span><span class="what">engos closes only if evidence is there</span><span class="tag code">code</span></div></div>
+    </div>
+    <div class="gatebar">Gate (PreToolUse) and Observe (PostToolUse) run on every write, Bash and Agent call from step 02 to 07, inside subagents too. A crashed or missing hook blocks.</div>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <h2><span class="n">5.</span> What Is Actually Enforced</h2>
+    <p class="intro">Three honest levels instead of yes / no.</p>
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="panel"><h3 class="hot">prevented</h3><p>Code stops it before it runs. The target is known for sure.</p></div>
+      <div class="panel"><h3>detected</h3><p>Code finds it after it ran, from the git diff, and stops the task.</p></div>
+      <div class="panel"><h3>advisory</h3><p>Written in a skill or role card. The model can ignore it.</p></div>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Rule</th><th>Mechanism</th><th>Level</th></tr></thead>
+        <tbody>
+          <tr><td>Gate can't fail open</td><td><code>onFailure: block</code> plus a catch-all that exits 2; self-test at <code>SessionStart</code></td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Execution mode</td><td><code>PreToolUse</code> on Edit, Write and Bash reads the task's mode</td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Protected paths</td><td>Edit or Write on a protected path needs <code>high_risk</code> and scope approval</td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Indirect edits by Bash</td><td><code>git status --porcelain=v2</code> (new, staged, renamed, deleted files) plus a size and time snapshot of protected files, which git often ignores (D37)</td><td><span class="tag code">detected</span></td></tr>
+          <tr><td>Model per step</td><td>Gate on <code>Agent|Task</code> checks <code>subagent_type</code> and the <code>model</code> parameter</td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Risky commands</td><td>Bash class table: push, publish, network, destructive need approval; unknown commands too in <code>high_risk</code> (D38)</td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Check results are real</td><td>Only <code>engos check &lt;name&gt;</code> counts. It runs the exact configured command and records the exit code itself (D36). Nothing stops a test from failing; this stops a failed or hand-typed run from counting as a pass.</td><td><span class="tag code">recorded</span></td></tr>
+          <tr><td>No "done" without passing checks</td><td><code>engos task close</code> refuses unless the required evidence is in the ledger and checks passed after the last edit</td><td><span class="tag code">prevented</span></td></tr>
+          <tr><td>Role behaviour</td><td><code>SubagentStart</code> injects the role card</td><td><span class="tag model">advisory</span></td></tr>
+          <tr><td>Plan quality</td><td>Plan skill</td><td><span class="tag model">advisory</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <h2><span class="n">6.</span> Classification Ratchet</h2>
+    <p class="intro">The model proposes a class. Code watches what is really touched and can only raise it. Only a typed command from the human lowers it.</p>
+    <div class="ladder">
+      <div class="rung"><b>question</b><span>No record, no ceremony. Reading is free.</span></div>
+      <div class="rung"><b>trivial_edit</b><span>Opened automatically on the first edit. Lead does it. Small budget.</span></div>
+      <div class="rung"><b>standard</b><span>Profile, plan, worker, checks recorded by code.</span></div>
+      <div class="rung"><b>high_risk</b><span>Scope approval, stronger validator, human settles disputes.</span></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel">
+        <h3>Signals that raise the class</h3>
+        <ul class="dash">
+          <li><b>declared</b> by the model, including sensitivity flags (auth, payments, data migration, deployment, secrets). Works in any language because the model reads the meaning. Can only raise.</li>
+          <li><b>planned</b> paths in the plan's scope.</li>
+          <li><b>observed</b> paths, diff size and command class from hooks. The strongest signal.</li>
+          <li>No keyword matching in code.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Example: a misjudged change</h3>
+        <p>"Small tweak to the login timeout." The lead calls Edit on <code>src/auth/session.ts</code>. The path matches <code>**/auth/**</code>, so the class jumps to <code>high_risk</code> and the edit is denied before it happens. Cost of the wrong guess: one denial, not an unreviewed change.</p>
+      </div>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="panel">
+        <h3>trivial_edit budget <span class="tag ok">agreed</span></h3>
+        <ul class="dash">
+          <li>Max 2 files, 40 changed lines.</li>
+          <li>Max 1 new file, no deletions.</li>
+          <li>Bash: read, checks, local git.</li>
+          <li>Over budget → <code>standard</code>; changes stay.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Protected paths <span class="tag ok">agreed</span></h3>
+<pre><span class="k">high_risk:</span> auth/ security/
+  migrations/ .env* *secret*
+  .github/workflows/ Dockerfile*
+  terraform/ k8s/
+<span class="k">standard:</span> package.json
+  requirements*.txt *.lock
+<span class="k">never:</span> approvals, ledger,
+  .claude/settings*, hooks.json</pre>
+        <p style="margin-top:8px;font-size:13px;color:var(--ink-2)">Projects can add paths, never remove from <code>never</code>.</p>
+      </div>
+      <div class="panel">
+        <h3>Lowering and git <span class="tag ok">agreed</span></h3>
+        <ul class="dash">
+          <li>Class only goes up. Lowering is a typed human command, recorded.</li>
+          <li>Hard gates can't be lowered.</li>
+          <li>Scope can widen twice per task, unprotected paths only.</li>
+          <li>Edits need git. No git → <code>read_only</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section>
+    <h2><span class="n">7.</span> Routing</h2>
+    <p class="intro">A role is a card injected into a subagent. The tier is picked by a written rule, never by asking a model how hard the task feels.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Rule table · defaults/rules.yaml</h3>
+<pre><span class="k">route:</span>
+  read_logs | search | inventory → fast
+  trivial_edit                   → lead itself
+  scoped_bugfix | tests | docs   → balanced
+  feature | debugging            → frontier
+  security_review                → frontier
+  architecture | migration       → deep
+<span class="k">validator_tier:</span>               <span class="c"># by assurance</span>
+  low → checks by code only
+  medium → balanced
+  high → frontier
+<span class="k">guards:</span>
+  code_edits: never on fast
+  workers: cannot spawn agents
+  one writer at a time
+  built_in_agents: Explore, Plan only</pre>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Two separate axes</h3>
+        <ul class="dash">
+          <li><b>change_risk</b>: how dangerous the action is. Drives the gate and approvals.</li>
+          <li><b>assurance</b>: how costly a wrong conclusion is. Drives evidence and the validator.</li>
+          <li>A security audit changes nothing (low risk) but needs high assurance.</li>
+          <li>The validator tier follows assurance, not the worker's tier.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tiers">
+      <div class="tier"><b>Haiku</b><span class="t">fast</span><p>Search, extraction, log reading. Never edits code.</p></div>
+      <div class="tier"><b>Sonnet</b><span class="t">balanced</span><p>Scoped fixes, tests, docs, routine validation.</p></div>
+      <div class="tier def"><b>Opus</b><span class="t">frontier</span><p>Features, debugging, security review.</p></div>
+      <div class="tier"><b>Fable</b><span class="t">deep</span><p>Architecture, migrations. Falls back to Opus if unavailable.</p></div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section>
+    <h2><span class="n">8.</span> Approvals</h2>
+    <p class="intro">The model can ask. Only the human can answer, and the human sees the real action, not the model's description of it.</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Sequence</h3>
+        <ol class="seq">
+          <li><span class="tag model">model</span><span>Tries <code>git push origin release/1.2</code>.</span></li>
+          <li><span class="tag code">gate</span><span>Blocks it and writes the request from the real tool input. ID comes from the hash.</span></li>
+          <li><span class="tag code">gate</span><span>Shows the exact command to the user directly.</span></li>
+          <li><span class="tag human">human</span><span>Approves or rejects.</span></li>
+          <li><span class="tag code">hook</span><span>Records the decision and a ledger line.</span></li>
+          <li><span class="tag code">gate</span><span>On retry, matches the hash, allows once, marks it used.</span></li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Approval record</h3>
+<pre><span class="k">approval_id:</span> APR-9f2c41d7
+<span class="k">task_id:</span> TASK-012
+<span class="k">action:</span> "git push origin release/1.2"
+<span class="k">bound_to:</span>
+  head: 4e1a9c0
+  branch: release/1.2
+<span class="k">risk:</span> external_side_effect
+<span class="k">decision:</span> approved
+<span class="k">decided_by:</span> human   <span class="c"># set by the hook</span>
+<span class="k">decided_at:</span> 2026-11-13T10:06:00Z
+<span class="k">single_use:</span> true
+<span class="k">expires_at:</span> 2026-11-13T11:06:00Z</pre>
+      </div>
+    </div>
+    <div class="tbl" style="margin-top:16px">
+      <table>
+        <thead><tr><th>Kind</th><th>Covers</th><th>How the human answers</th><th>Valid for</th></tr></thead>
+        <tbody>
+          <tr><td>Action approval</td><td>One push, publish, network call or destructive command</td><td>Native permission prompt, recorded by hook</td><td>Once, 1 hour, current HEAD only</td></tr>
+          <tr><td>Scope approval</td><td>Editing listed protected paths for one task</td><td>Typed <code>/engos:approve APR-…</code></td><td>Until the task closes, max 24 hours</td></tr>
+          <tr><td>Decision</td><td>Blocked task, dispute, detected violation</td><td>Typed choice from a handover with options</td><td>That decision only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="panel"><h3>Fallback <span class="tag ok">agreed</span></h3><p>In bypass or auto mode the native prompt isn't trusted: the gate asks for the typed command. Headless or CI: anything that needs approval is denied.</p></div>
+      <div class="panel"><h3>No blanket approvals <span class="tag ok">agreed</span></h3><p>No "approve every push in this task" in v0.1. Each external action gets its own answer.</p></div>
+      <div class="panel"><h3>Rejections <span class="tag ok">agreed</span></h3><p>Recorded and reported. The identical action can't be asked again in the same task; a changed one can.</p></div>
+    </div>
+    <p class="note">Spike finding: a script running <code>claude -p "/engos:approve …"</code> fires the same hooks as a typed command. So typed approvals count only from the session that made the request, and Bash may never run <code>claude</code> (D34). Round 2 showed <code>--resume</code> keeps the session id, so an approval is also void if the session was resumed or forked after the request (D35). <span class="tag ok">agreed</span></p>
+  </section>
+
+  <!-- 9 -->
+  <section>
+    <h2><span class="n">9.</span> Failure and Escalation</h2>
+    <p class="intro">Not every failure means a bigger model will help. The type of failure picks the response.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Failure</th><th>Response</th><th>Counts as a cycle</th></tr></thead>
+        <tbody>
+          <tr><td>check_failed</td><td>Retry same tier with the exact output, then one tier up</td><td>yes</td></tr>
+          <tr><td>env_error</td><td>Back to the lead, then the human. Missing dependency, flaky tool.</td><td>no</td></tr>
+          <tr><td>scope_violation</td><td>Reclassify through the ratchet</td><td>no</td></tr>
+          <tr><td>criterion_disputed</td><td>Dispute rules in section 10</td><td>no</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="panel"><h3>Three attempts per step <span class="tag ok">agreed</span></h3><p>Routed tier, then the same tier with the exact failing output, then one tier up. Sonnet → Sonnet → Opus → human. Fable is only reached when the human picks it.</p></div>
+      <div class="panel"><h3>Who labels a failure <span class="tag ok">agreed</span></h3><p>Code labels exit codes and missing tools. The lead labels the rest. Two <code>env_error</code>s in one step go to the human, so the label can't be used to dodge the count.</p></div>
+      <div class="panel"><h3>Uncertainty as checks <span class="tag ok">agreed</span></h3><p>A hypothesis exists, quoted log lines exist verbatim, all symptoms are explained. Evidence across more than one component goes one tier up.</p></div>
+    </div>
+    <p class="note">After the last attempt the task is <code>blocked</code> and the human gets a handover: what was tried, current state, options and the lead's recommendation.</p>
+  </section>
+
+  <!-- 10 -->
+  <section>
+    <h2><span class="n">10.</span> Who Is Responsible</h2>
+    <p class="intro">The lead owns the outcome of the task. A subagent owns its step. The human owns acceptance and anything that leaves the repo. <span class="tag ok">agreed</span></p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Lead does it vs delegates</h3>
+        <div class="tbl"><table style="min-width:0">
+          <tbody>
+            <tr><td>question, trivial_edit</td><td>Lead does it</td></tr>
+            <tr><td>Steps in standard and high_risk</td><td>Worker</td></tr>
+            <tr><td>Heavy reading</td><td>Scout</td></tr>
+            <tr><td>Intake, plan, talking to the human</td><td>Always the lead</td></tr>
+            <tr><td>Small fix after a worker</td><td>Lead, within a small budget</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="panel">
+        <h3 class="hot">Who settles a disagreement</h3>
+        <div class="tbl"><table style="min-width:0">
+          <tbody>
+            <tr><td>A check failed</td><td>Nobody. It's a fact.</td></tr>
+            <tr><td>Judgement call, standard</td><td>Lead, once per task, recorded</td></tr>
+            <tr><td>Judgement call, high_risk</td><td>Human</td></tr>
+            <tr><td>Security finding ≥ medium</td><td>Human</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+    <p class="note">The lead can never: skip a failed check, change acceptance criteria without a recorded amendment, mark a task complete, grant an approval, or lower a class.</p>
+  </section>
+
+  <!-- 11 -->
+  <section>
+    <h2><span class="n">11.</span> The User Always Sees and Decides</h2>
+    <p class="intro">Agents work in the background, so their work has to stay visible. And not every subscriber has every model, so the expensive tier is the user's call. <span class="tag ok">agreed</span></p>
+    <div class="grid3">
+      <div class="panel"><h3 class="hot">Status line</h3><p>One line under the prompt: task, class, each agent with its model and step, attempts, approvals waiting.</p></div>
+      <div class="panel"><h3 class="hot">Live graph · /engos:view</h3><p>Local page rebuilt from the ledger: agent graph and details, timeline, evidence, pending approvals, blocked tasks. Read-only: it can't approve anything.</p></div>
+      <div class="panel"><h3 class="hot">Text · /engos:status</h3><p>The same picture printed in the chat, for when the page isn't open.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel"><h3>Model availability</h3><p>Asked once and saved in <code>.engos/config.yaml</code>. If a call fails because a model isn't on the user's plan, it's marked unavailable and the step falls back one tier, with a note.</p></div>
+      <div class="panel"><h3>Fable needs a yes</h3><p>When a task routes to the deep tier, the lead explains why and asks. No means Opus. Projects can mark other tiers "ask first" the same way.</p></div>
+    </div>
+  </section>
+
+  <!-- 11b -->
+  <section>
+    <h2><span class="n">12.</span> Packaging</h2>
+    <p class="intro"><span class="tag ok">agreed</span></p>
+    <div class="tbl">
+      <table>
+        <tbody>
+          <tr><td>Name</td><td><code>engos</code>, commands <code>/engos:*</code>. Shown as "Engineering OS", for Claude Code.</td></tr>
+          <tr><td>Hook scripts</td><td>One dependency-free Node file. <code>/engos:init</code> checks Node is installed.</td></tr>
+          <tr><td>Minimum version</td><td>First Claude Code with fail-closed hooks. Older: session starts read-only.</td></tr>
+          <tr><td>In git</td><td><code>config.yaml</code>, <code>BRIEF.md</code>, <code>STATE.yaml</code>. The rest stays local.</td></tr>
+          <tr><td>Pause</td><td><code>/engos:pause</code> for this session only. Hard gates keep working.</td></tr>
+          <tr><td>Where it runs</td><td>Anywhere Claude Code runs: terminal, Desktop Code tab, IDE extensions, phone via Remote Control. Not the Desktop Chat tab, claude.ai or Cowork. Web to verify (D39).</td></tr>
+          <tr><td>Projects</td><td>One install serves every project. Each repo has its own <code>.engos/</code>; each session gates its own repo.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section>
+    <h2><span class="n">13.</span> Still Open</h2>
+    <p class="intro">Tracked in <code>docs/decisions.md</code>.</p>
+    <ul class="open">
+      <li><b>Owner review of the spec files</b><span class="tag pend">review</span><p><code>config/</code>, <code>docs/hooks.md</code>, <code>docs/execution-contract.md</code>, <code>tests/acceptance-scenarios.md</code>, <code>docs/build-plan.md</code>.</p></li>
+      <li><b>Platform checks, round 3</b><span class="tag pend">spike</span><p>Rounds 1 and 2 verified fail-closed hooks, write denial in every mode, the permission mode field, Agent and subagent fields and the real model name. Still to test with you: the native prompt in each mode, the status line in the terminal and the Desktop Code tab, and plugins on Claude Code on the web.</p></li>
+    </ul>
+  </section>
+
+  <div class="take">
+    <div class="lbl">Key takeaways</div>
+    <ul>
+      <li>A plugin, because hooks are the only part that can stop a tool call.</li>
+      <li>Built to catch mistakes and injected instructions, and says so. Not a sandbox.</li>
+      <li>Class comes from what the code touches, and only goes up.</li>
+      <li>Small work costs nothing extra; the lead does it directly.</li>
+      <li>Evidence is recorded by code, and only the human can approve.</li>
+    </ul>
+  </div>
+
+  <footer>Claude Engineering OS · architecture draft v0.1.8 · decisions D1–D39 in docs/decisions.md · spec in config/ and docs/</footer>
+</div>

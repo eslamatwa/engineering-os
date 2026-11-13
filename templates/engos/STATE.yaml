@@ -1,0 +1,25 @@
+# .engos/STATE.yaml — committed. Changed only through `engos` commands.
+schema: engos/state@1
+
+facts:                     # verified; each needs a source
+  - id: F-001
+    statement: "Example: API uses Express 4"
+    status: verified
+    source: { path: "package.json", line: 14 }
+    verified_by: code      # code | validator | human
+
+assumptions:               # not verified yet
+  - id: A-001
+    statement: "Example: staging shares the production database"
+    status: assumed
+    needs: human_confirmation
+
+decisions:
+  - id: PD-001
+    decision: "Example decision"
+    rationale: ""
+    source: human
+    date: 2026-11-13
+
+risks:
+  - { item: "", impact: "", owner: "", next_action: "" }

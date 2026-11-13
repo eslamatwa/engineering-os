@@ -1,0 +1,257 @@
+# Engineering OS — classification and routing rules (defaults shipped with the plugin)
+#
+# Source of truth for decisions: docs/decisions.md (D-numbers below).
+# Projects override in .engos/config.yaml. They may ADD paths and TIGHTEN limits.
+# They may not remove `never` paths, lower hard gates (config/policies.yaml), or loosen class requirements.
+# Values marked "default, tune" were filled in from the design review and need real-repo data.
+
+schema: engos/rules@1
+
+# ---------------------------------------------------------------------------
+# Classes (D8). Ordered low -> high. Nobody picks a class up front:
+# work starts as `question`, the first edit opens `trivial_edit`, signals raise it.
+# ---------------------------------------------------------------------------
+classes: [question, trivial_edit, standard, high_risk]
+
+class_requirements:
+  question:
+    record: none
+    plan: none
+    executor: lead
+    mode: read_only
+    validation: none
+  trivial_edit:
+    record: ledger_line
+    plan: none
+    executor: lead
+    mode: workspace_write
+    validation: { by: code, evidence: [E-diff-shown, E-checks-if-present] }
+  standard:
+    record: full
+    plan: required
+    executor: worker
+    mode: workspace_write
+    validation: { by: code_then_validator, evidence: [E-scope, E-checks, E-residual-risk] }
+  high_risk:
+    record: full
+    plan: required
+    executor: worker
+    mode: workspace_write
+    validation: { by: code_then_validator, evidence: [E-scope, E-checks, E-residual-risk, E-review-record] }
+    human: [scope_approval_before_protected_write, acknowledgement_at_close]
+
+# ---------------------------------------------------------------------------
+# Signals (D8, D13). effective.class = max(declared, planned, observed),
+# then a typed human override if any (D12). No keyword matching in code (D13).
+# ---------------------------------------------------------------------------
+signals:
+  declared:      # written by the lead from its reading of the request. Untrusted. Can only raise.
+    trust: low
+  planned:       # plan's scope paths, checked by code against protected paths
+    trust: medium
+  observed:      # hooks only: paths touched, diff size, command class
+    trust: high
+
+# D13: the model reads the request in any language and declares sensitivity flags.
+# Mapping of flag -> minimum class. default, tune
+sensitivity_flags:
+  auth: high_risk
+  payments: high_risk
+  secrets: high_risk
+  data_migration: high_risk
+  deployment: high_risk
+  other: standard
+
+# ---------------------------------------------------------------------------
+# Protected paths (D9). Matched after normalisation; case-insensitive on Windows and macOS.
+# ---------------------------------------------------------------------------
+protected_paths:
+  high_risk:
+    - "**/auth/**"
+    - "**/security/**"
+    - "**/migrations/**"
+    - "**/.env*"
+    - "**/*secret*"
+    - ".github/workflows/**"
+    - "**/terraform/**"
+    - "**/k8s/**"
+    - "**/Dockerfile*"
+  standard:
+    - "package.json"
+    - "**/requirements*.txt"
+    - "**/*.lock"
+  never:                      # always denied, cannot be removed by a project
+    - ".engos/approvals/**"
+    - ".engos/ledger*"
+    - ".claude/settings*.json"
+    - "**/hooks/hooks.json"
+
+# ---------------------------------------------------------------------------
+# Budgets (D10)
+# ---------------------------------------------------------------------------
+budgets:
+  trivial_edit:
+    max_files: 2
+    max_changed_lines: 40
+    max_created_files: 1
+    max_deleted_files: 0
+    bash_allowed: [read, check, vcs_local]
+    on_exceed: { raise_to: standard, keep_changes: true, mark: pre_upgrade }
+  standard:                   # default, tune
+    max_files: 25
+    max_changed_lines: 800
+    max_deleted_files: 5
+    on_exceed: replan
+  lead_integration_edit:      # small fix by the lead inside standard/high_risk (D25 context). default, tune
+    max_files: 2
+    max_changed_lines: 40
+
+# ---------------------------------------------------------------------------
+# Floors: every matching rule applies; result is the highest class.
+# ---------------------------------------------------------------------------
+floors:
+  - id: F-idle-read
+    when: { observed.files_count: 0, declared.mutates: false }
+    class: question
+  - id: F-trivial
+    when: { within_budget: trivial_edit }
+    class: trivial_edit
+  - id: F-over-trivial
+    when: { exceeds_budget: trivial_edit }
+    class: standard
+  - id: F-standard-path
+    when: { touches_protected: standard }
+    class: standard
+  - id: F-multi-module            # default, tune
+    when: { observed.modules: { min_count: 3 } }
+    class: standard
+  - id: F-protected
+    when: { touches_protected: high_risk }      # observed or planned
+    class: high_risk
+  - id: F-irreversible
+    when: { declared.reversibility: [hard, irreversible] }
+    class: high_risk
+  - id: F-sensitivity
+    when: { declared.sensitivity: any }
+    class: from_sensitivity_flags
+
+# Assurance = how costly a wrong conclusion is. Drives evidence and validator tier.
+assurance_rules:
+  - { when: { class: trivial_edit }, assurance: light }
+  - { when: { class: standard }, assurance: normal }
+  - { when: { observed.tests_present: false, observed.files_count: { min: 1 } }, assurance: normal }
+  - { when: { declared.kind: [security_review, architecture, migration] }, assurance: high }
+  - { when: { class: high_risk }, assurance: high }
+
+# ---------------------------------------------------------------------------
+# Bash command classes (D7, D34). Each subcommand is classified after splitting on
+# && ; | $( ) and backticks. Anything that fails to parse counts as the highest class seen, else unknown.
+# ---------------------------------------------------------------------------
+bash_classes:
+  read:          ["ls", "cat", "head", "tail", "rg", "grep", "find", "git status", "git log", "git diff", "git show"]
+  check:         "engos check <name> only (D36); it runs the exact command from .engos/config.yaml checks"
+  vcs_local:     ["git add", "git commit", "git switch", "git checkout -b", "git branch", "git stash"]
+  pkg_install:   ["npm install", "npm i", "pnpm add", "yarn add", "pip install", "cargo add", "go get"]
+  network:       ["curl", "wget", "ssh", "scp", "rsync", "Invoke-WebRequest"]
+  vcs_remote:    ["git push", "gh pr create", "gh release", "npm publish", "cargo publish"]
+  destructive:   ["rm -rf (outside temp)", "git reset --hard", "git clean", "DROP TABLE", "Remove-Item -Recurse"]
+  self_protect:  ["claude", "any write to never paths", "editing hooks or settings"]   # D34: blocking `claude` is mandatory
+  unknown:       "everything else"
+
+bash_policy:                 # per class: question/trivial | standard | high_risk
+  read:         [allow, allow, allow]
+  check:        [allow_record, allow_record, allow_record]
+  vcs_local:    [allow, allow, allow]
+  pkg_install:  [raise_to_standard, allow_observe, allow_observe]
+  unknown:      [allow_observe, allow_observe, approval]        # D38; project known_commands are treated as allow_observe in every class
+  network:      [approval, approval, approval]
+  vcs_remote:   [approval, approval, approval]
+  destructive:  [approval, approval, approval]
+  self_protect: [deny, deny, deny]
+
+# ---------------------------------------------------------------------------
+# Observation (D37). Runs after every non-read Bash command.
+# ---------------------------------------------------------------------------
+observation:
+  git: "git status --porcelain=v2 --untracked-files=all"   # untracked, staged, unstaged, renames, deletions
+  line_counts: "git diff HEAD --numstat"                    # staged + unstaged against HEAD
+  protected_snapshot:
+    covers: [protected_paths.high_risk, protected_paths.standard, protected_paths.never]
+    fields: [size, mtime]          # taken at task open and after each command; works for gitignored files
+    limit_files: 2000              # default, tune; above this, sample and warn
+  compare_with: task_open_snapshot
+
+# ---------------------------------------------------------------------------
+# Routing (D5, D20, D23, D32)
+# ---------------------------------------------------------------------------
+tiers:
+  map: { fast: haiku, balanced: sonnet, frontier: opus, deep: fable }
+  ask_first: [deep]                    # D32: the lead asks the user per task; no -> frontier
+  fallback: { deep: frontier, frontier: balanced }   # when a model is marked unavailable
+  availability: "asked once, stored in .engos/config.yaml models.available"
+
+step_tier_rules:                       # first match wins
+  - { step: [search, extract, read_logs, summarize, locate, inventory], tier: fast }
+  - { step: implement, class: trivial_edit, executor: lead }
+  - { step: [implement, tests, docs], kind: [bugfix, tests, docs], tier: balanced }
+  - { step: implement, kind: [feature, refactor, debugging], tier: frontier }
+  - { step: implement, class: high_risk, tier: frontier }
+  - { step: review_security, tier: frontier }
+  - { step: [design, plan_migration], tier: deep }
+  - { default: frontier }
+
+validator_tier_rules:                  # by assurance, not by worker tier
+  - { assurance: light, by: code_only }
+  - { assurance: normal, tier: balanced }
+  - { assurance: high, tier: frontier }
+
+guards:
+  code_edits_never_on: [fast]
+  one_writer_at_a_time: true           # D24
+  parallel_allowed_for: read_only
+  workers_can_spawn_agents: false      # D24
+  built_in_agents_allowed_in_task: [Explore, Plan]   # D24
+
+# ---------------------------------------------------------------------------
+# Escalation (D20, D21, D22)
+# ---------------------------------------------------------------------------
+escalation:
+  attempts_per_step: 3
+  order: [routed_tier, same_tier_with_failure_output, one_tier_up]
+  never_auto_to: [deep]                # only the human picks Fable after a block
+  counts_as_attempt: [check_failed]
+  not_an_attempt: [env_error, scope_violation, criterion_disputed]
+  env_error_limit_per_step: 2          # then the human decides
+  labels:
+    by_code: { check_failed: "configured check exited non-zero", env_error: "command not found or missing dependency" }
+    by_lead: [check_failed, env_error, scope_violation, criterion_disputed]
+  on_exhausted: { state: blocked, handover: true }
+
+uncertainty_checks:                    # D22: analysis and debugging steps
+  - { id: U-hypothesis, check: "a hypothesis is stated", by: code }
+  - { id: U-quotes, check: "quoted log lines exist verbatim in the provided logs", by: code }
+  - { id: U-symptoms, check: "hypothesis explains every reported symptom", by: validator }
+  - { id: U-cross-system, check: "evidence spans more than one component", on_true: one_tier_up }
+
+# ---------------------------------------------------------------------------
+# Scope and lowering (D12)
+# ---------------------------------------------------------------------------
+scope:
+  write_outside_plan: deny
+  lead_widen_max_per_task: 2
+  widen_requires: [written_reason, path_not_protected]
+  pre_existing_changes: excluded       # files dirty before the task opened
+lowering:
+  allowed_by: human_typed_command      # /engos:class TASK-012 standard
+  cannot_lower: hard_gates
+
+# ---------------------------------------------------------------------------
+# Evidence kinds
+# ---------------------------------------------------------------------------
+evidence_kinds:
+  E-diff-shown:        { by: code, desc: "diff summary shown to the user" }
+  E-checks:            { by: code, desc: "engos check <name> ran after the last edit; exit code recorded by the CLI (D36)" }
+  E-checks-if-present: { by: code, desc: "as E-checks when checks are configured; otherwise noted as missing" }
+  E-scope:             { by: code, desc: "files changed are inside planned scope.write" }
+  E-residual-risk:     { by: model, desc: "residual risk written, even if empty" }
+  E-review-record:     { by: model, desc: "validator verdict with cited refs; refs verified to exist by code" }

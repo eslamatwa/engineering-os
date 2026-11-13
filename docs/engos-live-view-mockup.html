@@ -1,0 +1,255 @@
+<title>Engineering OS Live View</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a control-room panel — task header, four counters, agent graph beside an event feed, then the two companion surfaces (terminal status line, model question). */
+:root {
+  --bg: #eef0f2;
+  --card: #ffffff;
+  --sunk: #f5f6f8;
+  --ink: #16191d;
+  --ink-2: #5d6570;
+  --line: #d6dae0;
+  --haiku: #13897a;
+  --sonnet: #2f62c9;
+  --opus: #7445c2;
+  --fable: #b9741a;
+  --human: #16191d;
+  --ok: #1f8a4c;
+  --bad: #c2392f;
+  --warn: #b9741a;
+  --f-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --card: #171b21; --sunk: #12161b; --ink: #e7eaee; --ink-2: #98a1ad; --line: #2a3039;
+    --haiku: #3cc3b0; --sonnet: #6f9bff; --opus: #b18cff; --fable: #f0a748; --human: #e7eaee;
+    --ok: #4cc57f; --bad: #ff6b5f; --warn: #f0a748;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1216; --card: #171b21; --sunk: #12161b; --ink: #e7eaee; --ink-2: #98a1ad; --line: #2a3039;
+  --haiku: #3cc3b0; --sonnet: #6f9bff; --opus: #b18cff; --fable: #f0a748; --human: #e7eaee;
+  --ok: #4cc57f; --bad: #ff6b5f; --warn: #f0a748;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 48px; display: grid; gap: 16px; }
+.mono { font-family: var(--f-mono); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.eyebrow { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 10px; }
+.example { font-family: var(--f-mono); font-size: 11px; color: var(--warn); border: 1px dashed var(--warn); border-radius: 4px; padding: 2px 8px; }
+/* header */
+.head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.head .left { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; min-width: 0; }
+.brand { font-weight: 600; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.brand i { width: 10px; height: 10px; border-radius: 2px; background: var(--ink); transform: rotate(45deg); display: inline-block; }
+.task { font-family: var(--f-mono); font-size: 13px; color: var(--ink-2); }
+.title { font-size: 16px; font-weight: 500; }
+.chip { font-family: var(--f-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.chip.cls { border-color: var(--sonnet); color: var(--sonnet); }
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.stat .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat .v small { font-size: 14px; font-weight: 400; color: var(--ink-2); }
+.stat .s { color: var(--ink-2); font-size: 12.5px; margin-top: 4px; }
+.stat.alert { border-color: var(--warn); }
+.stat.alert .v { color: var(--warn); }
+/* main */
+.main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 16px; }
+.graph { overflow-x: auto; }
+.graph svg { display: block; width: 100%; min-width: 600px; height: auto; }
+svg text { font-family: var(--f-ui); }
+.n-box { fill: var(--card); stroke: var(--line); stroke-width: 1.2; }
+.n-lead { stroke: var(--opus); stroke-width: 1.6; }
+.n-human { fill: var(--sunk); stroke: var(--human); stroke-dasharray: 0; }
+.t-name { fill: var(--ink); font-size: 14px; font-weight: 600; }
+.t-sub { fill: var(--ink-2); font-size: 11.5px; }
+.t-mono { fill: var(--ink-2); font-size: 10.5px; font-family: var(--f-mono); }
+.t-edge { fill: var(--ink-2); font-size: 10.5px; font-family: var(--f-mono); }
+.e { fill: none; stroke: var(--ink-2); stroke-width: 1.3; opacity: .7; }
+.e.active { stroke: var(--sonnet); stroke-width: 2; opacity: 1; }
+.e.wait { stroke-dasharray: 4 4; opacity: .5; }
+.e.appr { stroke: var(--warn); stroke-dasharray: 5 4; stroke-width: 1.6; opacity: 1; }
+.dot-haiku { fill: var(--haiku); } .dot-sonnet { fill: var(--sonnet); } .dot-opus { fill: var(--opus); } .dot-fable { fill: var(--fable); }
+.st-ok { fill: var(--ok); } .st-run { fill: var(--sonnet); } .st-wait { fill: var(--ink-2); } .st-warn { fill: var(--warn); }
+.ring { fill: none; stroke: var(--sonnet); stroke-width: 2; opacity: .55; transform-box: fill-box; transform-origin: center; animation: pulse 1.8s ease-out infinite; }
+@keyframes pulse { 0% { opacity: .6; transform: scale(1); } 100% { opacity: 0; transform: scale(1.08); } }
+.flow { stroke-dasharray: 6 6; animation: dash 1.2s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -12; } }
+@media (prefers-reduced-motion: reduce) { .ring, .flow { animation: none; } }
+.gate-band { fill: var(--sunk); stroke: var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend b { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+/* steps */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 14px; }
+.stp { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--sunk); font-size: 12.5px; }
+.stp .h { display: flex; justify-content: space-between; gap: 6px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); }
+.stp.done .h b { color: var(--ok); } .stp.run { border-color: var(--sonnet); } .stp.run .h b { color: var(--sonnet); }
+.bar { height: 4px; border-radius: 2px; background: var(--line); margin-top: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; }
+/* feed */
+.feed { list-style: none; margin: 0; padding: 0; display: grid; }
+.feed li { display: grid; grid-template-columns: 44px 12px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: start; font-size: 13px; }
+.feed li:last-child { border-bottom: 0; }
+.feed time { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.feed .d { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--ink-2); }
+.feed .d.ok { background: var(--ok); } .feed .d.bad { background: var(--bad); } .feed .d.run { background: var(--sonnet); } .feed .d.warn { background: var(--warn); }
+.feed .who { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); }
+.feed li.hl { background: color-mix(in srgb, var(--warn) 9%, transparent); margin: 0 -8px; padding: 8px; border-radius: 6px; border-bottom: 0; }
+/* bottom row */
+.bottom { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 16px; }
+.term { background: #0b0d10; color: #d7dde4; border-radius: 8px; padding: 12px 14px; font-family: var(--f-mono); font-size: 12px; overflow-x: auto; white-space: pre; line-height: 1.7; }
+.term .p { color: #7f8a96; } .term .o { color: #b18cff; } .term .s { color: #6f9bff; } .term .h { color: #3cc3b0; } .term .w { color: #f0a748; } .term .g { color: #4cc57f; }
+.ask { border: 1px solid var(--fable); border-radius: 10px; padding: 14px; background: color-mix(in srgb, var(--fable) 6%, var(--card)); }
+.ask p { margin: 0 0 8px; }
+.ask .why { color: var(--ink-2); font-size: 13px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.btn { font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--fable); border-color: var(--fable); color: #1b1305; font-weight: 600; }
+.btn:focus-visible { outline: 2px solid var(--sonnet); outline-offset: 2px; }
+.ask .ans { margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+@media (max-width: 900px) { .main, .bottom { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } .steps { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <div class="card head">
+    <div class="left">
+      <span class="brand"><i></i>Engineering OS</span>
+      <span class="task">TASK-012</span>
+      <span class="title">Fix session expiry not refreshing on activity</span>
+      <span class="chip cls">standard</span>
+      <span class="chip mono">4m 12s</span>
+    </div>
+    <span class="example">Mockup · example data</span>
+  </div>
+
+  <div class="stats">
+    <div class="card stat"><p class="eyebrow">Agents</p><div class="v">3 <small>+ lead</small></div><div class="s">1 running · 1 done · 1 waiting</div></div>
+    <div class="card stat"><p class="eyebrow">Step S2 attempts</p><div class="v">2 <small>/ 3</small></div><div class="s">Retrying on Sonnet with the failing test</div></div>
+    <div class="card stat"><p class="eyebrow">Checks</p><div class="v">3 <small>passed</small></div><div class="s">1 failed · recorded by hooks</div></div>
+    <div class="card stat alert"><p class="eyebrow">Waiting for you</p><div class="v">1</div><div class="s">Approval for <span class="mono">git push</span></div></div>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <p class="eyebrow">Who is working</p>
+      <div class="graph">
+        <svg viewBox="0 0 680 420" role="img" aria-label="Agent graph: the lead on Opus sent step S1 to a scout on Haiku, which is done, and step S2 to a worker on Sonnet, which is running its second attempt. A validator on Sonnet waits for step S3. An approval for git push is waiting for the human.">
+          <!-- edges -->
+          <path class="e appr" d="M340 70 V138"/>
+          <text class="t-edge" x="350" y="102" style="fill:var(--warn)">approval pending · git push</text>
+          <path class="e" d="M290 208 C 240 250, 130 250, 110 288"/>
+          <text class="t-edge" x="132" y="246">S1 brief → report ✓</text>
+          <path class="e active flow" d="M340 208 V288"/>
+          <text class="t-edge" x="350" y="252" style="fill:var(--sonnet)">S2 brief + failing test</text>
+          <path class="e wait" d="M392 208 C 450 250, 560 250, 575 288"/>
+          <text class="t-edge" x="478" y="246">S3 queued</text>
+          <path class="e wait" d="M428 326 H488"/>
+
+          <!-- human -->
+          <rect class="n-box n-human" x="262" y="16" width="156" height="54" rx="27"/>
+          <circle cx="290" cy="43" r="6" style="fill:var(--human)"/>
+          <text class="t-name" x="304" y="40">You</text>
+          <text class="t-sub" x="304" y="56">1 decision waiting</text>
+
+          <!-- lead -->
+          <rect class="n-box n-lead" x="246" y="140" width="188" height="68" rx="10"/>
+          <circle class="dot-opus" cx="266" cy="162" r="6"/>
+          <text class="t-name" x="280" y="167">Lead</text>
+          <text class="t-mono" x="372" y="166" text-anchor="end">opus</text>
+          <circle class="st-run" cx="420" cy="162" r="4"/>
+          <text class="t-sub" x="262" y="190">Owns the task · watching S2</text>
+
+          <!-- scout -->
+          <rect class="n-box" x="22" y="290" width="176" height="74" rx="10"/>
+          <circle class="dot-haiku" cx="42" cy="312" r="6"/>
+          <text class="t-name" x="56" y="317">Scout</text>
+          <text class="t-mono" x="150" y="316" text-anchor="end">haiku</text>
+          <circle class="st-ok" cx="184" cy="312" r="4"/>
+          <text class="t-sub" x="38" y="338">S1 · locate root cause</text>
+          <text class="t-mono" x="38" y="354">done · refresh.ts:42</text>
+
+          <!-- worker -->
+          <rect class="ring" x="252" y="290" width="176" height="74" rx="10"/>
+          <rect class="n-box" x="252" y="290" width="176" height="74" rx="10" style="stroke:var(--sonnet);stroke-width:1.6"/>
+          <circle class="dot-sonnet" cx="272" cy="312" r="6"/>
+          <text class="t-name" x="286" y="317">Worker</text>
+          <text class="t-mono" x="384" y="316" text-anchor="end">sonnet</text>
+          <circle class="st-run" cx="414" cy="312" r="4"/>
+          <text class="t-sub" x="268" y="338">S2 · implementer</text>
+          <text class="t-mono" x="268" y="354">attempt 2/3 · editing</text>
+
+          <!-- validator -->
+          <rect class="n-box" x="488" y="290" width="176" height="74" rx="10" style="stroke-dasharray:4 4"/>
+          <circle class="dot-sonnet" cx="508" cy="312" r="6"/>
+          <text class="t-name" x="522" y="317">Validator</text>
+          <text class="t-mono" x="624" y="316" text-anchor="end">sonnet</text>
+          <circle class="st-wait" cx="650" cy="312" r="4"/>
+          <text class="t-sub" x="504" y="338">S3 · verify, read-only</text>
+          <text class="t-mono" x="504" y="354">waiting for S2</text>
+
+          <!-- gate -->
+          <rect class="gate-band" x="22" y="384" width="642" height="26" rx="6"/>
+          <text class="t-mono" x="36" y="401">GATE · 41 tool calls checked · 1 blocked: git push origin fix/session-refresh · 0 out-of-scope edits</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><b style="background:var(--haiku)"></b>Haiku</span>
+        <span><b style="background:var(--sonnet)"></b>Sonnet</span>
+        <span><b style="background:var(--opus)"></b>Opus</span>
+        <span><b style="background:var(--fable)"></b>Fable</span>
+        <span>· pulsing = running · dashed = waiting</span>
+      </div>
+      <div class="steps">
+        <div class="stp done"><div class="h"><span>S1 · locate</span><b>done</b></div>Scout found the cause in <span class="mono">refresh.ts</span><div class="bar"><i style="width:100%;background:var(--ok)"></i></div></div>
+        <div class="stp run"><div class="h"><span>S2 · implement</span><b>2/3</b></div>Worker retrying with the failing test<div class="bar"><i style="width:60%;background:var(--sonnet)"></i></div></div>
+        <div class="stp"><div class="h"><span>S3 · verify</span><b>queued</b></div>Validator checks scope and AC-2<div class="bar"><i style="width:0"></i></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="eyebrow">What happened</p>
+      <ul class="feed">
+        <li class="hl"><time>10:06</time><i class="d warn"></i><div><b>Waiting for you:</b> push 2 commits to <span class="mono">fix/session-refresh</span><div class="who">gate · APR-9f2c41d7 · expires 11:06</div></div></li>
+        <li><time>10:05</time><i class="d run"></i><div>S2 attempt 2 started with the exact failing output<div class="who">lead → worker · sonnet</div></div></li>
+        <li><time>10:05</time><i class="d bad"></i><div>Check failed: <span class="mono">tests/session</span>, 1 failing, exit 1<div class="who">hook · check_failed · counts as attempt</div></div></li>
+        <li><time>10:02</time><i class="d run"></i><div>S2 attempt 1 started<div class="who">lead → worker · sonnet</div></div></li>
+        <li><time>10:02</time><i class="d ok"></i><div>S1 done: expiry not extended in <span class="mono">refresh.ts:42</span><div class="who">scout · haiku · 38s</div></div></li>
+        <li><time>10:01</time><i class="d"></i><div>S1 sent to scout<div class="who">router · read_logs → fast</div></div></li>
+        <li><time>10:00</time><i class="d warn"></i><div>Raised to <b>standard</b>: plan touches 2 folders<div class="who">classifier · observed</div></div></li>
+        <li><time>10:00</time><i class="d"></i><div>Task opened on first edit as trivial_edit<div class="who">gate · auto</div></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="card">
+      <p class="eyebrow">Always visible · terminal status line</p>
+      <div class="term"><span class="p">◆ engos</span>  TASK-012 standard │ <span class="o">lead opus</span> │ <span class="h">scout ✓</span> │ <span class="s">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="w">⚠ 1 approval</span>
+<span class="p">◆ engos</span>  idle │ <span class="g">last: TASK-011 closed ✓ 3 checks</span> │ /engos:view</div>
+      <p style="margin:10px 0 0;color:var(--ink-2);font-size:13px">One line under the prompt while you work. <span class="mono">/engos:view</span> opens this page; <span class="mono">/engos:status</span> prints the same as text in the chat.</p>
+    </div>
+    <div class="ask">
+      <p class="eyebrow" style="color:var(--fable)">The lead asks before using Fable</p>
+      <p><b>This task is a good fit for Fable.</b></p>
+      <p class="why">Moving sessions from cookies to tokens touches 14 files across 3 services and needs a data migration. Fable handles this kind of cross-system work best. If your plan doesn't include Fable, I'll use Opus.</p>
+      <div class="btns">
+        <button class="btn primary" type="button" id="yes-fable">Use Fable</button>
+        <button class="btn" type="button" id="no-fable">Use Opus</button>
+      </div>
+      <div class="ans" id="ans" aria-live="polite">Your answer is recorded in the ledger for this task only.</div>
+    </div>
+  </div>
+</div>
+<script>
+  const ans = document.getElementById('ans');
+  document.getElementById('yes-fable').addEventListener('click', () => { ans.textContent = 'Recorded: Fable approved for TASK-014. Steps marked deep will run on Fable.'; });
+  document.getElementById('no-fable').addEventListener('click', () => { ans.textContent = 'Recorded: Fable declined for TASK-014. Deep steps fall back to Opus.'; });
+</script>

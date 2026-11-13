@@ -1,0 +1,25 @@
+version: "0.1"
+execution_modes:
+  read_only:
+    allowed: [inspect, classify, plan, analyze, test_without_mutation]
+  workspace_write:
+    allowed: [edit_workspace, create_branch_local_artifacts, run_local_tests]
+  approved_delivery:
+    requires: [human_approval, validated_evidence]
+prohibited_without_human_approval:
+  - production_deployment
+  - destructive_data_operation
+  - secret_rotation
+  - permission_escalation
+  - external_side_effect
+  - root_or_administrator_access
+approval_gates:
+  security_sensitive_change: explicit_human_approval
+  production_change: explicit_human_approval
+  irreversible_operation: explicit_human_approval
+knowledge:
+  never_store: [secrets, tokens, private_keys, raw_credentials]
+  require_source_for: [decisions, assumptions, validation_results]
+validation:
+  require_evidence_for_completion: true
+  minimum: [scope_check, relevant_tests_or_explanation, residual_risk]

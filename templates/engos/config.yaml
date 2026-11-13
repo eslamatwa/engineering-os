@@ -1,0 +1,27 @@
+# .engos/config.yaml — committed. Overrides plugin defaults.
+# You can ADD protected paths and TIGHTEN limits. You can't remove `never` paths or hard gates.
+schema: engos/project-config@1
+
+models:
+  available: [haiku, sonnet, opus]   # asked by /engos:init; add fable if your plan has it
+  ask_first: [deep]                  # tiers the lead must ask about per task (D32)
+
+checks:                              # commands that count as evidence. Set by a human.
+  test: "npm test"
+  lint: "npm run lint"
+  build: ""
+  security: ""
+
+protected_paths:                     # added to the defaults in rules.yaml
+  high_risk:
+    - "src/billing/**"
+  standard: []
+
+budgets:                             # tighten only
+  trivial_edit: {}
+
+known_commands:                      # D38: never need an approval, even in high_risk tasks
+  - "npm run build"
+  - "npm run dev"
+
+mcp_allowlist: []                    # MCP tools that don't need an action approval

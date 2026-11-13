@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# engos launcher. Resolves its own folder so Node gets a native path on Windows (Git Bash) too.
+dir=$(cd "$(dirname "$0")" && (pwd -W 2>/dev/null || pwd))
+exec node "$dir/../scripts/engos-cli.js" "$@"

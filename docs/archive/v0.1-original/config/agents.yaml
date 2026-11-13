@@ -1,0 +1,32 @@
+version: "0.1"
+roles:
+  chief_orchestrator:
+    responsibility: own_outcome_plan_and_escalation
+    model_tier: frontier
+  classifier:
+    responsibility: derive_task_context_and_risk
+    model_tier: fast
+  planner:
+    responsibility: decompose_work_and_define_evidence
+    model_tier: balanced
+  implementer:
+    responsibility: make_scoped_change_or_artifact
+    model_tier: balanced
+  architect:
+    responsibility: evaluate_system_tradeoffs
+    model_tier: frontier
+  security_reviewer:
+    responsibility: identify_security_privacy_and_permission_risk
+    model_tier: frontier
+  validator:
+    responsibility: verify_claims_against_evidence
+    model_tier: balanced
+contracts:
+  required_handoff_fields:
+    - objective
+    - scope
+    - inputs_read
+    - outputs_changed
+    - evidence
+    - limitations
+    - next_action

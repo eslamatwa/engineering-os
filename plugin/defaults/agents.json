@@ -1,0 +1,184 @@
+{
+  "schema": "engos/agents@1",
+  "lead": {
+    "is": "main_session",
+    "owns": "task_outcome",
+    "always_does": [
+      "intake",
+      "plan",
+      "merge_results",
+      "talk_to_human"
+    ],
+    "does_itself": [
+      "question",
+      "trivial_edit",
+      "lead_integration_edit"
+    ],
+    "can_never": [
+      "skip_a_failed_check",
+      "change_acceptance_criteria_without_recorded_amendment",
+      "close_a_task",
+      "grant_an_approval",
+      "lower_a_class"
+    ]
+  },
+  "agents": {
+    "scout": {
+      "file": "agents/scout.md",
+      "tier": "fast",
+      "purpose": "heavy reading, search, log triage",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "can_edit": false,
+      "can_spawn_agents": false,
+      "effort": "low"
+    },
+    "worker": {
+      "file": "agents/worker.md",
+      "tier": "per_call",
+      "purpose": "implement one step inside its scope",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "can_spawn_agents": false,
+      "effort": "medium"
+    },
+    "validator": {
+      "file": "agents/validator.md",
+      "tier": "per_call",
+      "purpose": "judge scope and sufficiency of evidence; never edits",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "can_edit": false,
+      "can_spawn_agents": false,
+      "effort": "medium"
+    }
+  },
+  "built_in_agents_allowed_in_task": [
+    "Explore",
+    "Plan"
+  ],
+  "roles": {
+    "implementer": {
+      "does": "make the scoped change; report files changed and checks run"
+    },
+    "triager": {
+      "does": "locate the failure; cite exact files, lines or log lines"
+    },
+    "analyst": {
+      "does": "separate verified facts (with source) from assumptions"
+    },
+    "architect": {
+      "does": "compare options with trade-offs; state what would change the choice"
+    },
+    "critic": {
+      "does": "find the weakest assumption in a proposal and how to test it"
+    },
+    "security_reviewer": {
+      "does": "find security, privacy and permission risk with evidence and severity"
+    },
+    "evidence_validator": {
+      "does": "re-check each finding's evidence; confirm, downgrade or mark not reproduced"
+    },
+    "incident_lead": {
+      "does": "connect findings across components; propose next diagnostic step"
+    }
+  },
+  "role_rules": {
+    "bugfix": [
+      "triager",
+      "implementer"
+    ],
+    "feature": [
+      "implementer"
+    ],
+    "refactor": [
+      "implementer"
+    ],
+    "debugging": [
+      "triager",
+      "implementer"
+    ],
+    "analysis": [
+      "analyst"
+    ],
+    "architecture": [
+      "architect",
+      "critic"
+    ],
+    "security_review": [
+      "security_reviewer",
+      "evidence_validator"
+    ],
+    "docs": [
+      "implementer"
+    ],
+    "add_when": [
+      {
+        "when": {
+          "class": "high_risk",
+          "sensitivity": [
+            "auth",
+            "secrets",
+            "payments"
+          ]
+        },
+        "role": "security_reviewer"
+      },
+      {
+        "when": {
+          "cross_system": true
+        },
+        "role": "incident_lead"
+      }
+    ]
+  },
+  "disputes": {
+    "check_failed": "fact; no dispute",
+    "judgement_standard": {
+      "settled_by": "lead",
+      "limit_per_task": 1,
+      "recorded": true
+    },
+    "judgement_high_risk": {
+      "settled_by": "human"
+    },
+    "security_finding_medium_or_higher": {
+      "settled_by": "human",
+      "any_class": true
+    },
+    "scope_violation_protected": {
+      "settled_by": "human"
+    },
+    "criterion_wrong_or_flaky": {
+      "standard": "lead_with_recorded_amendment",
+      "high_risk": "human"
+    }
+  },
+  "handoff": {
+    "brief_schema": "engos/brief@1",
+    "report_schema": "engos/report@1",
+    "required_fields": [
+      "objective",
+      "scope",
+      "inputs_read",
+      "outputs_changed",
+      "evidence",
+      "limitations",
+      "next_action"
+    ]
+  }
+}

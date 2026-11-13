@@ -1,0 +1,200 @@
+{
+  "schema": "engos/policies@1",
+  "threat_model": {
+    "protects_against": [
+      "honest_mistakes",
+      "model_misled_by_injected_instructions"
+    ],
+    "out_of_scope_v0_1": [
+      "model_deliberately_bypassing_rules",
+      "os_level_isolation"
+    ],
+    "readme_statement": "Engineering OS prevents common mistakes and detects indirect changes inside the repo after they happen. It is not a sandbox and does not stop a model that is deliberately trying to get around it.\n"
+  },
+  "modes": {
+    "read_only": {
+      "allowed": [
+        "read",
+        "search",
+        "configured_checks_without_side_effects"
+      ],
+      "denied": [
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "mutating_bash"
+      ]
+    },
+    "workspace_write": {
+      "allowed": [
+        "edit_inside_scope",
+        "local_git",
+        "configured_checks",
+        "local_package_install_observed"
+      ],
+      "denied": [
+        "external_actions_without_approval"
+      ]
+    },
+    "default_mode": "read_only",
+    "requires_git_for_write": true
+  },
+  "hard_gates": [
+    {
+      "id": "G-delivery",
+      "when": "bash class in [vcs_remote, network, destructive] or external MCP tool",
+      "require": "approval_per_action"
+    },
+    {
+      "id": "G-protected",
+      "when": "write to high_risk protected path",
+      "require": "scope_approval"
+    },
+    {
+      "id": "G-never",
+      "when": "write to never path",
+      "require": "deny"
+    },
+    {
+      "id": "G-self",
+      "when": "bash class self_protect (includes running claude, D34)",
+      "require": "deny"
+    },
+    {
+      "id": "G-prod",
+      "when": "deploy to production",
+      "require": "deny"
+    }
+  ],
+  "approvals": {
+    "only_from": "human",
+    "request_written_by": "gate",
+    "id_format": "APR-<first 8 hex of action hash>",
+    "hash_binds": [
+      "tool_name",
+      "normalized_input",
+      "cwd",
+      "task_id",
+      "git_head",
+      "git_branch",
+      "script_sha256_if_local_script"
+    ],
+    "show_to_user": "exact_action_plus_context",
+    "context_by_kind": {
+      "push": [
+        "branch",
+        "outgoing_commits"
+      ],
+      "scope": [
+        "file_list",
+        "task_reason"
+      ],
+      "delete": [
+        "files_to_remove"
+      ]
+    },
+    "kinds": {
+      "action": {
+        "covers": "one push, publish, network call, destructive command or external MCP call",
+        "method": "native_permission_prompt",
+        "single_use": true,
+        "expires_after": "1h",
+        "void_on": "new_commit"
+      },
+      "scope": {
+        "covers": "editing listed high_risk paths for one task",
+        "method": "typed_command",
+        "expires": "on_task_close",
+        "max_lifetime": "24h"
+      },
+      "decision": {
+        "covers": "blocked task, dispute, detected violation, high_risk amendment",
+        "method": "typed_command"
+      }
+    },
+    "fallback": {
+      "when_permission_mode_in": [
+        "bypassPermissions",
+        "auto"
+      ],
+      "use": "typed_command"
+    },
+    "headless": "deny_all_requiring_approval",
+    "blanket_approvals": false,
+    "rejection": {
+      "recorded": true,
+      "same_hash_again_in_task": "deny"
+    },
+    "capture": {
+      "hook": "UserPromptExpansion",
+      "match": "whole_line",
+      "require_same_session_id": true,
+      "void_if_session_resumed_or_forked_after_request": true,
+      "require_pending_request": true,
+      "reject_if_expired": true
+    }
+  },
+  "pause": {
+    "command": "/engos:pause",
+    "typed_by": "human",
+    "lasts": "current_session",
+    "turns_off": [
+      "classification",
+      "plans",
+      "validation"
+    ],
+    "keeps": "hard_gates"
+  },
+  "knowledge": {
+    "never_store": [
+      "secrets",
+      "tokens",
+      "private_keys",
+      "raw_credentials"
+    ],
+    "facts_need_source": true,
+    "assumptions_marked": true,
+    "secret_found_in_diff_or_state": "needs_human"
+  },
+  "state_files": {
+    "changed_only_by": "engos_cli",
+    "committed": [
+      ".engos/config.yaml",
+      ".engos/BRIEF.md",
+      ".engos/STATE.yaml"
+    ],
+    "local_only": [
+      ".engos/tasks/",
+      ".engos/approvals/",
+      ".engos/ledger.jsonl",
+      ".engos/status.json"
+    ]
+  },
+  "platform": {
+    "surfaces": {
+      "supported": [
+        "terminal_cli",
+        "desktop_code_tab",
+        "ide_extensions",
+        "remote_control_from_phone"
+      ],
+      "to_verify": [
+        "claude_code_web"
+      ],
+      "not_supported": [
+        "desktop_chat_tab",
+        "claude_ai",
+        "mobile_chat",
+        "cowork"
+      ]
+    },
+    "min_claude_code": "first version with hook onFailure: block (tested on 2.1.321)",
+    "min_claude_code_version": "2.1.321",
+    "version_source": "CLAUDE_CODE_EXECPATH --version",
+    "version_unknown": "warn",
+    "older_version": "start_read_only_and_ask_to_update",
+    "runtime": "node",
+    "runtime_missing": "block_with_install_instructions",
+    "hooks_on_failure": "block"
+  }
+}
