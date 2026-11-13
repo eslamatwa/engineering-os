@@ -110,7 +110,11 @@ function compareVersions(a, b) {
   return 0;
 }
 
+// 1. AI_AGENT, set by Claude Code for its child processes (e.g. "claude-code_2-1-321_agent"): no process spawn.
+// 2. The binary in CLAUDE_CODE_EXECPATH with --version. Only these two variables are read, never logged (D42).
 function claudeCodeVersion() {
+  const m = /claude-code_(\d+)-(\d+)-(\d+)/.exec(String(process.env.AI_AGENT || ''));
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
   const exe = process.env.CLAUDE_CODE_EXECPATH;
   if (!exe) return null;
   try {

@@ -55,7 +55,7 @@ Rounds 2 and 3 in `docs/spike-results.md`. Needs the CLI logged in and about 15 
 
 **Exit:** E1, E2, E3.
 
-## Phase 7 · Hardening and publish
+## Phase 7 · Hardening and publish — in progress (see docs/phase-results.md)
 
 - Run all scenarios on Windows, macOS and Linux.
 - Gate p95 under 50 ms, or a recorded reason.

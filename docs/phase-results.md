@@ -295,3 +295,25 @@ All unit tests: 71 of 71. Gate overhead over Node start-up (p95): Write 13.4 ms,
 Demo project with a scout done, a worker on attempt 2, a failed check and a pending push. Served with `engos view --serve`; checked at desktop and phone width (no horizontal scroll). Ending the worker from a hook updated the page within one refresh, without reloading. Finding (P13): the pane shows `file://` pages as static snapshots, so `/engos:view` uses the local server there.
 
 Still for the owner: the status line in the Desktop app's Code tab (H2b) and E3 (same results in terminal and Desktop).
+
+## Phase 7 · Hardening and publish (in progress, 2026-11-13)
+
+Done so far:
+- CI (`.github/workflows/tests.yml`): unit tests, compiled defaults in sync, and hook latency on Windows, macOS and Linux with Node 20 and 24. Run 43475573409: all 6 jobs pass, 71 of 71 tests each.
+- `claude plugin validate --strict`: clean except the missing `author` (waiting for the owner). Icon added (`plugin/.claude-plugin/icon.png`, drawn by `tools/make-icon.js`). Marketplace at `.claude-plugin/marketplace.json` (source `./plugin`); README has the install line and the threat model statement.
+- Version detection (D48): `AI_AGENT` first, no process spawn. 72 of 72 tests locally.
+
+### Latency in CI (p95, 30 runs)
+
+| Runner | Node start-up | Gate overhead: Write / Bash | Observer after Bash |
+| --- | --- | --- | --- |
+| ubuntu · Node 20 | 29 ms | 7.9 / 2.9 ms | 51 ms |
+| ubuntu · Node 24 | 26 ms | 5.0 / 1.2 ms | 45 ms |
+| macos · Node 20 | 51 ms | 13.2 / 12.3 ms | 113 ms |
+| macos · Node 24 | 79 ms | 16.5 / **37.3** ms | 119 ms |
+| windows · Node 20 | 61 ms | 25.2 / 17.0 ms | 231 ms |
+| windows · Node 24 | 62 ms | 27.2 / 14.8 ms | 225 ms |
+
+11 of 12 gate figures are within the D44 target (30 ms). The macOS Node 24 Bash figure is one 30-run sample on a shared runner whose Node start-up itself varied by 30 ms; re-check before publishing. The observer is slowest on Windows because each git process start costs about 50 ms there; it runs after the tool, not before it.
+
+Still open: owner's author name, the Desktop status line and E3 (need the owner at the machine), Claude Code on the web, publishing.

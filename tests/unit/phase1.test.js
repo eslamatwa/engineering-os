@@ -26,7 +26,7 @@ function runHook(mode, input, env) {
   const res = cp.spawnSync(process.execPath, [HOOK, mode], {
     input: JSON.stringify(input),
     encoding: 'utf8',
-    env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '' }, env || {}),
+    env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', AI_AGENT: '' }, env || {}),
   });
   return { code: res.status, stdout: res.stdout, stderr: res.stderr };
 }
@@ -175,4 +175,19 @@ test('version parsing and comparison', () => {
   assert.strictEqual(core.parseVersion('nope'), null);
   assert.strictEqual(core.compareVersions([2, 1, 300], [2, 1, 321]), -1);
   assert.strictEqual(core.compareVersions([2, 2, 0], [2, 1, 321]), 1);
+});
+
+test('D42: the Claude Code version is read from AI_AGENT without starting a process', () => {
+  const core = require(path.join(__dirname, '..', '..', 'plugin', 'scripts', 'engos-core.js'));
+  const saved = { a: process.env.AI_AGENT, e: process.env.CLAUDE_CODE_EXECPATH };
+  try {
+    process.env.AI_AGENT = 'claude-code_2-1-321_agent';
+    process.env.CLAUDE_CODE_EXECPATH = '';
+    assert.deepStrictEqual(core.claudeCodeVersion(), [2, 1, 321]);
+    process.env.AI_AGENT = 'something-else';
+    assert.strictEqual(core.claudeCodeVersion(), null);
+  } finally {
+    if (saved.a === undefined) delete process.env.AI_AGENT; else process.env.AI_AGENT = saved.a;
+    if (saved.e === undefined) delete process.env.CLAUDE_CODE_EXECPATH; else process.env.CLAUDE_CODE_EXECPATH = saved.e;
+  }
 });

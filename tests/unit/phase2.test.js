@@ -15,7 +15,7 @@ const core = require(path.join(REPO, 'plugin', 'scripts', 'engos-core.js'));
 const rules = require(path.join(REPO, 'plugin', 'scripts', 'engos-rules.js'));
 
 const SID = 'sess-p2';
-const ENV = { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', CLAUDE_CODE_SESSION_ID: SID };
+const ENV = { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', AI_AGENT: '', CLAUDE_CODE_SESSION_ID: SID };
 
 function git(dir, args) {
   return cp.execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid'].concat(args), { cwd: dir, encoding: 'utf8' });

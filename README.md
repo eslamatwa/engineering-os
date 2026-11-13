@@ -33,7 +33,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D47). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D48). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |

@@ -23,7 +23,7 @@ function write(dir, rel, text) {
   fs.writeFileSync(path.join(dir, rel), text);
 }
 function env(sid) {
-  return Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', CLAUDE_CODE_SESSION_ID: sid || SID });
+  return Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', AI_AGENT: '', CLAUDE_CODE_SESSION_ID: sid || SID });
 }
 function hook(mode, dir, input, sid) {
   const s = sid || SID;

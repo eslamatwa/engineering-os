@@ -24,7 +24,7 @@ function write(dir, rel, text) {
   fs.writeFileSync(path.join(dir, rel), text);
 }
 function env(sid) {
-  return Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', CLAUDE_CODE_SESSION_ID: sid || SID, NO_COLOR: '1' });
+  return Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: '', CLAUDE_CODE_EXECPATH: '', AI_AGENT: '', CLAUDE_CODE_SESSION_ID: sid || SID, NO_COLOR: '1' });
 }
 function hook(mode, dir, input) {
   const res = cp.spawnSync(process.execPath, [HOOK, mode], { input: JSON.stringify(Object.assign({ session_id: SID, cwd: dir }, input)), encoding: 'utf8', env: env() });
