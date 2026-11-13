@@ -23,13 +23,13 @@ Status column: **verified** = confirmed in `docs/spike-results.md`; **pending** 
 | H3 | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Gate for file writes | block | built and tested, phase 2 |
 | H4 | `PreToolUse` | `Bash` | Gate for commands | block | built and tested, phase 2 (approvals: phase 3) |
 | H5 | `PreToolUse` | `Agent\|Task` | Gate for subagents and models | block | built and tested, phase 5 (P10) |
-| H6 | `PreToolUse` | `mcp__.*` | External tools need approval unless allowlisted | block | assumed |
+| H6 | `PreToolUse` | `mcp__.*` | External tools need approval unless allowlisted | block | **not built**: needs the owner's call on which host tools (for example the Desktop app's own `mcp__ccd_*` tools) are allowed by default |
 | H7 | `PostToolUse` | `Bash` | Observe changes; record check results | default | built and tested, phase 2; message delivery verified (P2-E3) |
-| H8 | `PostToolUseFailure` | `Bash` | Record failed checks with exit code | default | verified (P8) |
+| H8 | `PostToolUseFailure` | `Agent\|Task` | Free a failed launch; mark a model the account lacks as unavailable (D32). Checks don't need it: `engos check` records exit codes itself (D36). | default | built, phase 5; the failure text is matched loosely (pending a real failure) |
 | H9 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Update observed counts | default | built and tested, phase 2 |
 | H10 | `SubagentStart` | all | Inject role card and step contract; ledger `step.started` | default | built and tested, phase 5; injection verified (P11) |
 | H11 | `SubagentStop` | all | Read report, compare with observed changes; ledger `step.ended`. A bad report is sent back once (`decision: block`). | default | built and tested, phase 5; send-back verified (P12) |
-| H12 | `Stop` | all | Remind about open tasks. No enforcement. | default | assumed |
+| H12 | `Stop` | all | Remind about open tasks. No enforcement. | default | not built (optional) |
 | — | Status line | — | Reads `.engos/status.json`, rebuilt once per hook or CLI run that wrote to the ledger | — | built and tested, phase 6; terminal verified (H2), Desktop pending (H2b) |
 
 Observer hooks (H7, H8, H9, H11) don't block. If they fail, the evidence they would have recorded is missing, so `engos task close` refuses later. The system still fails closed, just at close time.

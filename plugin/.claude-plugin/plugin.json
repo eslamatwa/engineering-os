@@ -1,7 +1,10 @@
 {
   "name": "engos",
-  "version": "0.1.0-phase6",
+  "version": "0.1.0-phase7",
   "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence, and shows what the agents are doing.",
+  "author": {
+    "name": "Eslam Atwa"
+  },
   "license": "MIT",
   "keywords": [
     "governance",

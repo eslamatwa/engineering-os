@@ -50,5 +50,7 @@ Every decision in `docs/decisions.md` and how it is checked. Scenario IDs refer 
 | D44 | Node kept; gate overhead ≤ 30 ms | `tools/measure-hook.js` |
 | D45 | Task profiles as JSON | Phase 2 unit tests |
 | D46 | Approvals through Claude Code's prompt; typed commands only for decisions, class, pause | B2–B8, B10, B11 |
+| D47 | Lead edit budget once worker steps exist | D47 unit test (phase 5) |
+| D48 | Version from AI_AGENT first | Phase 1 unit test; P14 |
 
 Every security decision (D4, D7, D9, D12, D14–D19, D24, D27, D29, D34–D38) has at least one running scenario, except D7, whose limits are stated rather than enforced.

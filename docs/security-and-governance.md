@@ -18,7 +18,7 @@ The README says this in plain words: Engineering OS prevents common mistakes and
 | --- | --- | --- |
 | prevented | Code stops it before it runs | Edit on a protected path, `git push` without approval, wrong model for a step, running `claude` from Bash |
 | detected | Code finds it after it ran and stops the task | A script that writes a protected file, budget exceeded through Bash |
-| advisory | A skill or role card asks for it | Plan quality, role behaviour |
+| advisory | The session summary, a brief or a role card asks for it | Plan quality, role behaviour |
 
 Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFailure: block`, verified in spike R4 and R5).
 
@@ -35,7 +35,7 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 
 ## Data handling
 
-- Secrets, tokens, private keys and raw credentials never go into `.engos/`, the ledger, briefs or reports. A secret found in a diff or state file sends the task to the human.
+- Secrets, tokens, private keys and raw credentials never go into `.engos/`, the ledger, briefs or reports. Check output is never stored, only its hash; the status picture holds labels, never command output or environment values. Automatic secret scanning of diffs is **not built in v0.1**.
 - Facts need a source (file and line, command output, or a human). Assumptions are marked as assumptions until a human confirms them.
 - Tasks, approvals and the ledger stay local and are gitignored. Config, brief and state are committed (D28).
 
@@ -54,3 +54,6 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 | An injected instruction misleads the human approver | The human makes the final call | Approvals show the exact command, not the model's summary |
 | Another session or a scheduled task sends an approval command | Hooks get no origin field | Same-session rule (D34) |
 | The user turns the plugin off | Their choice | `/engos:pause` keeps hard gates on; uninstall is outside our control |
+| A subagent's report misstates what it did | Reports are model text | Files changed are compared with what hooks observed; refs and quoted log lines are checked to exist; a bad report is sent back once, then flagged to the lead as unverified |
+| MCP tools act outside the repo | The MCP gate (H6) isn't built yet | Listed for the owner; until then Claude Code's own permissions apply |
+| The local live view server | It listens on a port | 127.0.0.1 only, GET only, two files, no state changes, stops after 8 hours |

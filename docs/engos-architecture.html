@@ -145,7 +145,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
 </style>
 
 <div class="wrap">
-  <div class="topbar"><span>Design review / v0.1 draft 2</span><span>Plugin architecture</span></div>
+  <div class="topbar"><span>v0.1 · as built through phase 6</span><span>Plugin architecture</span></div>
 
   <header class="hero">
     <h1>Claude Engineering OS</h1>
@@ -219,22 +219,22 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <div class="grid2">
       <div class="panel">
         <h3>The plugin · you maintain it</h3>
-<pre>engos/
-├── .claude-plugin/plugin.json
-├── skills/
-│   ├── intake/   plan/   run/
-│   ├── validate/ status/
-│   └── roles/        <span class="c"># cards, kept short</span>
+<pre>plugin/
+├── .claude-plugin/  plugin.json · icon.png
 ├── agents/           <span class="c"># 3 files</span>
 │   ├── scout.md      <span class="c"># read-only, fast tier</span>
-│   ├── worker.md     <span class="c"># tier set per call</span>
+│   ├── worker.md     <span class="c"># model set per step</span>
 │   └── validator.md  <span class="c"># no Edit / Write</span>
 ├── commands/
-│   init · approve · reject · pause · resume
-├── hooks/hooks.json
+│   init · status · view · decide
+│   class · pause · resume
+├── hooks/hooks.json  <span class="c"># 7 events</span>
 ├── bin/engos         <span class="c"># state changes go here</span>
-├── scripts/  gate · classify · observe · ledger
-└── defaults/ rules.yaml · policies.yaml</pre>
+├── scripts/  hook · cli · rules · observe
+│   approvals · evidence · orchestrate
+│   status · statusline
+├── view/index.html   <span class="c"># the live view</span>
+└── defaults/ rules · policies · agents (JSON)</pre>
       </div>
       <div class="panel">
         <h3 class="hot">.engos/ · in the user's repo</h3>
@@ -436,7 +436,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
         <tbody>
           <tr><td>Action</td><td>Push, publish, network, destructive, unknown command in a high_risk task</td><td>Yes / No in Claude Code's prompt</td><td>That one run; the next asks again</td></tr>
           <tr><td>Protected file</td><td>First edit of each protected file in a task</td><td>Yes / No in Claude Code's prompt</td><td>That file, until the task closes, max 24 hours</td></tr>
-          <tr><td>Decision</td><td>A command changed protected files without approval</td><td>Typed <code>/engos:decide TASK-… accept|stop</code></td><td>That decision only</td></tr>
+          <tr><td>Decision</td><td>A violation, a step blocked after 3 attempts, a dispute for the user, an amendment in high_risk, closing a high_risk task, using Fable</td><td>Typed <code>/engos:decide TASK-… &lt;option&gt;</code></td><td>That decision only</td></tr>
         </tbody>
       </table>
     </div>
@@ -506,15 +506,15 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
   <!-- 11 -->
   <section>
     <h2><span class="n">11.</span> The User Always Sees and Decides</h2>
-    <p class="intro">Agents work in the background, so their work has to stay visible. And not every subscriber has every model, so the expensive tier is the user's call. <span class="tag ok">agreed</span></p>
+    <p class="intro">Agents work in the background, so their work has to stay visible. And not every subscriber has every model, so the expensive tier is the user's call. <span class="tag ok">built in phases 5 and 6</span></p>
     <div class="grid3">
       <div class="panel"><h3 class="hot">Status line</h3><p>One line under the prompt: task, class, each agent with its model and step, attempts, approvals waiting.</p></div>
-      <div class="panel"><h3 class="hot">Live graph · /engos:view</h3><p>Local page rebuilt from the ledger: agent graph and details, timeline, evidence, pending approvals, blocked tasks. Read-only: it can't approve anything.</p></div>
+      <div class="panel"><h3 class="hot">Live graph · /engos:view</h3><p>Local page that refreshes every 2 seconds from <code>.engos/status.json</code>: agent graph, steps, timeline, evidence, what's waiting for you. In the Desktop app it runs through a small read-only server on 127.0.0.1. It can't approve anything.</p></div>
       <div class="panel"><h3 class="hot">Text · /engos:status</h3><p>The same picture printed in the chat, for when the page isn't open.</p></div>
     </div>
     <div class="grid2" style="margin-top:16px">
       <div class="panel"><h3>Model availability</h3><p>Asked once and saved in <code>.engos/config.yaml</code>. If a call fails because a model isn't on the user's plan, it's marked unavailable and the step falls back one tier, with a note.</p></div>
-      <div class="panel"><h3>Fable needs a yes</h3><p>When a task routes to the deep tier, the lead explains why and asks. No means Opus. Projects can mark other tiers "ask first" the same way.</p></div>
+      <div class="panel"><h3>Fable needs a yes</h3><p>When a step routes to the deep tier, the gate stops the agent call, the lead explains why, and the user types <code>/engos:decide TASK-… fable</code> or <code>no_fable</code>. No means Opus. If the plan lacks Fable, nobody is asked.</p></div>
     </div>
   </section>
 
@@ -539,11 +539,25 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
 
   <!-- 12 -->
   <section>
-    <h2><span class="n">13.</span> Still Open</h2>
-    <p class="intro">Tracked in <code>docs/decisions.md</code>.</p>
-    <ul class="open">
-      <li><b>Owner review of the spec files</b><span class="tag pend">review</span><p><code>config/</code>, <code>docs/hooks.md</code>, <code>docs/execution-contract.md</code>, <code>tests/acceptance-scenarios.md</code>, <code>docs/build-plan.md</code>.</p></li>
-      <li><b>Platform checks, round 3</b><span class="tag pend">spike</span><p>Rounds 1 and 2 verified fail-closed hooks, write denial in every mode, the permission mode field, Agent and subagent fields and the real model name. Still to test with you: the native prompt in each mode, the status line in the terminal and the Desktop Code tab, and plugins on Claude Code on the web.</p></li>
+    <h2><span class="n">13.</span> Build Status and Still Open</h2>
+    <p class="intro">Evidence for each phase in <code>docs/phase-results.md</code>. 72 unit tests; CI runs them on Windows, macOS and Linux.</p>
+    <div class="tbl">
+      <table>
+        <tbody>
+          <tr><td>1 · Skeleton</td><td>Self-check, safe read-only mode, init <span class="tag ok">done</span></td></tr>
+          <tr><td>2 · Gate and fast path</td><td>Write and Bash gates, classification ratchet, observer <span class="tag ok">done</span></td></tr>
+          <tr><td>3 · Approvals</td><td>Claude Code's own prompt, typed decisions, forged-record detection <span class="tag ok">done</span></td></tr>
+          <tr><td>4 · Evidence and close</td><td><code>engos check</code>, close rules <span class="tag ok">done</span></td></tr>
+          <tr><td>5 · Orchestration</td><td>Three subagents, router, Agent gate, reports, escalation, Fable ask, disputes <span class="tag ok">done</span></td></tr>
+          <tr><td>6 · Visibility</td><td>Status line, <code>/engos:status</code>, live view <span class="tag ok">done</span></td></tr>
+          <tr><td>7 · Hardening and publish</td><td>CI on 3 systems, icon, marketplace, validation clean <span class="tag pend">in progress</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="open" style="margin-top:16px">
+      <li><b>With the owner at the machine</b><span class="tag pend">test</span><p>The status line in the Desktop app's Code tab, the same results in terminal and Desktop (E3), version detection in a terminal session.</p></li>
+      <li><b>Not built yet</b><span class="tag pend">decide</span><p>The MCP tool gate (H6) needs a call on which host tools are allowed by default. Automatic secret scanning of diffs is parked for later.</p></li>
+      <li><b>Publish</b><span class="tag pend">owner</span><p>The repo is private; installing from the marketplace needs it public, or access for each user.</p></li>
     </ul>
   </section>
 
@@ -558,5 +572,5 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     </ul>
   </div>
 
-  <footer>Claude Engineering OS · architecture draft v0.1.9 · decisions D1–D46 in docs/decisions.md · spec in config/ and docs/</footer>
+  <footer>Engineering OS · architecture v0.2.0, as built through phase 6 · decisions D1–D48 in docs/decisions.md · spec in config/ and docs/</footer>
 </div>

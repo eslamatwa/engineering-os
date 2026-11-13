@@ -153,17 +153,19 @@ footer a, .langlink a { color: var(--accent); }
       <div class="panel">
         <h3>تأكد أولًا من</h3>
         <ul class="dash">
-          <li><b>Claude Code</b> بإصدار يدعم الـ hooks التي تفشل مغلقة. جُرّب على 2.1.321.</li>
-          <li><b>Node</b> موجود في الـ PATH. الـ hooks سكريبت Node صغير بلا مكتبات خارجية.</li>
+          <li><b>Claude Code</b> بإصدار 2.1.321 أو أحدث.</li>
+          <li><b>Node</b> بإصدار 18 أو أحدث في الـ PATH (جُرّب على 20 و24، على Windows وmacOS وLinux). الـ hooks سكريبت Node صغير بلا مكتبات خارجية.</li>
           <li><b>git</b>. التعديل مسموح داخل مستودع git فقط.</li>
         </ul>
       </div>
       <div class="panel">
         <h3 class="hot">التثبيت</h3>
 <pre><span class="c"># inside Claude Code</span>
-/plugin marketplace add &lt;marketplace&gt;
-/plugin install engos@&lt;marketplace&gt;</pre>
-        <p class="cap">اسم الـ marketplace يُحدد عند النشر.</p>
+/plugin marketplace add eslamatwa/engineering-os
+/plugin install engos@engineering-os
+
+<span class="c"># or from a terminal</span>
+claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
       </div>
     </div>
     <p class="note">إذا كان Node غير موجود أو كان Claude Code قديمًا، فلن يفشل Engineering OS بصمت. سيمنع التعديلات ويخبرك بما يجب تثبيته أو تحديثه.</p>
@@ -274,19 +276,19 @@ footer a, .langlink a { color: var(--accent); }
     <h2><span class="n">٥.</span> عندما يسأل عن Fable</h2>
     <p class="intro">Fable مخصص لأصعب الأعمال مثل التصميم المعماري والـ migrations، وليس متاحًا في كل الاشتراكات. لذلك لا يُستخدم أبدًا دون موافقتك.</p>
     <div class="grid2">
-      <div class="term"><span class="b">This task is a good fit for Fable.</span>
+      <div class="term"><span class="b">Step S2 is a good fit for Fable.</span>
 <span class="d">Moving sessions to tokens touches 14 files</span>
 <span class="d">across 3 services and needs a data migration.</span>
-<span class="d">If your plan doesn't include Fable, I'll use Opus.</span>
 
-<span class="y">[ Use Fable ]</span>  <span class="d">[ Use Opus ]</span></div>
+<span class="d">To use Fable, type:</span>  <span class="y">/engos:decide TASK-014 fable</span>
+<span class="d">To use Opus, type:</span>   /engos:decide TASK-014 no_fable</div>
       <div class="panel">
         <h3>كيف يعمل</h3>
         <ul class="dash">
-          <li>يُسأل لكل مهمة على حدة، وتُسجّل إجابتك.</li>
-          <li>إذا تبيّن أن النموذج غير متاح، تنزل الخطوة درجة واحدة ويُبلغك بذلك.</li>
+          <li>يُسأل لكل مهمة على حدة، وتُسجّل إجابتك. لا تُحسب إلا إجابتك المكتوبة في نفس الجلسة.</li>
+          <li>إذا لم يكن <code>fable</code> ضمن <code>models.available</code> فلن تُسأل: تعمل الخطوة على Opus ويُبلغك بذلك.</li>
+          <li>إذا فشل استدعاء نموذج لأنه غير متاح في اشتراكك، يُعلَّم كغير متاح وتنزل الخطوة درجة واحدة.</li>
           <li>بعد 3 محاولات فاشلة تتوقف المهمة، ويظهر Fable كأحد الخيارات التي تختار منها.</li>
-          <li>تريد أن يسألك قبل Opus أيضًا؟ أضفه إلى <code>ask_first</code> في <code>config.yaml</code>.</li>
         </ul>
       </div>
     </div>
@@ -298,8 +300,8 @@ footer a, .langlink a { color: var(--accent); }
     <p class="intro">الـ agents تعمل في الخلفية، لذلك هناك ثلاث طرق لترى ما تفعله.</p>
     <div class="term"><span class="d">◆ engos</span>  TASK-012 standard │ <span class="b">lead opus</span> │ <span class="g">scout ✓</span> │ <span class="b">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="y">⚠ 1 approval</span></div>
     <div class="grid3" style="margin-top:16px">
-      <div class="panel"><h3 class="hot">سطر الحالة</h3><p>دائمًا تحت الـ prompt: المهمة، ودرجتها، وكل agent مع نموذجه وخطوته، والمحاولات، والموافقات المنتظرة.</p></div>
-      <div class="panel"><h3 class="hot"><code>/engos:view</code></h3><p>رسم حي للـ agents مع خط زمني، والأدلة المجمّعة، والموافقات المنتظرة، والمهام المتوقفة. في تطبيق Desktop يفتح بجانب المحادثة. للعرض فقط ولا يستطيع الموافقة على أي شيء.</p></div>
+      <div class="panel"><h3 class="hot">سطر الحالة</h3><p>دائمًا تحت الـ prompt: المهمة، ودرجتها، وكل agent مع نموذجه وخطوته، والمحاولات، والفحوص الفاشلة، والموافقات المنتظرة. تفعّله من <code>/engos:init</code>.</p></div>
+      <div class="panel"><h3 class="hot"><code>/engos:view</code></h3><p>رسم حي للـ agents مع خط زمني، والأدلة المجمّعة، وما ينتظرك. يتحدّث كل ثانيتين. في تطبيق Desktop يفتح بجانب المحادثة عبر خادم محلي صغير (على جهازك فقط). للعرض فقط ولا يستطيع الموافقة على أي شيء.</p></div>
       <div class="panel"><h3 class="hot"><code>/engos:status</code></h3><p>نفس الصورة كنص في المحادثة. مفيد من الهاتف عبر Remote Control.</p></div>
     </div>
   </section>
@@ -311,20 +313,21 @@ footer a, .langlink a { color: var(--accent); }
     <div class="grid2">
       <div class="panel">
         <h3>ما الذي يصلك</h3>
-<pre><span class="k">DEC-004</span> · TASK-012 blocked after 3 attempts
-tried   sonnet, sonnet, opus · AC-1 failed
+<pre><span class="k">TASK-012</span> blocked: step S2 failed its checks 3 times
+tried   sonnet, sonnet, opus
 state   2 files changed · lint passes · test fails
 options
-  a  one more attempt on Fable
-  b  amend AC-1: the test asserts old behaviour
-  c  stop; keep the diff on the branch
-lead recommends  b</pre>
+  retry  one more attempt on Opus
+  fable  one more attempt on Fable (if your plan has it)
+  stop   stop; keep the changes for review
+lead recommends  retry: the failing test needs …</pre>
       </div>
       <div class="panel">
         <h3 class="hot">كيف ترد</h3>
-<pre>/engos:decide DEC-004 b</pre>
+<pre>/engos:decide TASK-012 retry</pre>
         <p style="margin-top:12px">تقرر أنت أيضًا عندما يغيّر سكريبت ملفًا محميًا، وعندما يختلف الـ worker والمراجع في مهمة high_risk، وفي أي ملاحظة أمنية بدرجة متوسطة أو أعلى.</p>
-        <p>مشكلات البيئة، مثل أداة ناقصة، لا تستهلك محاولات. وإذا تكررت مرتين تصل إليك.</p>
+        <p>مشكلات البيئة، مثل أداة ناقصة، لا تستهلك محاولات. وإذا تكررت مرتين في نفس الخطوة تصل إليك.</p>
+        <p>إذا كان الاختبار نفسه خاطئًا، يقترح Claude تعديل شروط القبول. وفي مهمة high_risk توافق عليه بـ <code>/engos:decide TASK-… approve_amendment</code>.</p>
       </div>
     </div>
   </section>
@@ -369,11 +372,10 @@ lead recommends  b</pre>
         <thead><tr><th>الأمر</th><th>من</th><th>ماذا يفعل</th></tr></thead>
         <tbody>
           <tr><td><code>/engos:init</code></td><td>أنت</td><td>تجهيز المشروع الحالي</td></tr>
-          <tr><td><code>/engos:decide TASK-… accept|stop</code></td><td>أنت</td><td>القرار في مهمة توقفت تنتظرك</td></tr>
+          <tr><td><code>/engos:decide TASK-… &lt;option&gt;</code></td><td>أنت</td><td>الرد على مهمة توقفت تنتظرك. الرسالة تخبرك بالخيارات: <code>accept</code>/<code>stop</code>، <code>retry</code>/<code>fable</code>، <code>fable</code>/<code>no_fable</code>، <code>close</code>، <code>validator</code>/<code>worker</code>، <code>approve_amendment</code>/<code>reject_amendment</code>.</td></tr>
           <tr><td><code>/engos:class TASK-… standard</code></td><td>أنت</td><td>خفض درجة مهمة. قواعد الأمان المدمجة تبقى.</td></tr>
-          <tr><td><code>/engos:task &lt;summary&gt;</code></td><td>أنت أو Claude</td><td>فتح مهمة الآن بدل انتظار أول تعديل</td></tr>
-          <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>أنت</td><td>إيقاف الإجراءات الإضافية أو تشغيلها لهذه الجلسة</td></tr>
-          <tr><td><code>/engos:status</code></td><td>أي أحد</td><td>عرض المهمة الحالية والـ agents كنص</td></tr>
+                    <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>أنت</td><td>إيقاف الإجراءات الإضافية أو تشغيلها لهذه الجلسة</td></tr>
+          <tr><td><code>/engos:status</code></td><td>أي أحد</td><td>عرض المهمة الحالية والـ agents والفحوص وما ينتظرك، كنص</td></tr>
           <tr><td><code>/engos:view</code></td><td>أي أحد</td><td>فتح الرسم الحي</td></tr>
         </tbody>
       </table>
@@ -443,7 +445,7 @@ lead recommends  b</pre>
           <tr><td>«خارج نطاق الخطة»</td><td>التغيير يلمس ملفات لم تذكرها الخطة.</td><td>اترك Claude يوسّع النطاق (مرتين لكل مهمة)، أو وافق على قرار.</td></tr>
           <tr><td>قراري تم تجاهله</td><td>كُتب في جلسة أخرى، أو بعد استئناف الجلسة.</td><td>اطلب من Claude تشغيل <code>engos task rearm TASK-…</code>، ثم اكتب القرار مرة أخرى في هذه الجلسة.</td></tr>
           <tr><td>الاختبارات نجحت لكن المهمة لا تُغلق</td><td>لم تُشغّل عبر <code>engos check</code>، أو شُغّلت قبل آخر تعديل.</td><td>اطلب من Claude تشغيل <code>engos check test</code> مرة أخرى.</td></tr>
-          <tr><td>لا يظهر سطر الحالة في تطبيق Desktop</td><td>قد يكون سطر الحالة خاصًا بالطرفية.</td><td>استخدم <code>/engos:view</code>، فهو يفتح بجانب المحادثة.</td></tr>
+          <tr><td>لا يظهر سطر الحالة</td><td>هو مُطفأ إلا إذا اخترته في <code>/engos:init</code>، وقد لا يظهر في تطبيق Desktop.</td><td>شغّل <code>/engos:init</code> مرة أخرى ووافق على سطر الحالة، أو استخدم <code>/engos:view</code>، فهو يفتح بجانب المحادثة.</td></tr>
           <tr><td>يسألني عن أمر باستمرار</td><td>الأوامر غير المعروفة تحتاج موافقة في مهام high_risk.</td><td>أضفه إلى <code>known_commands</code>.</td></tr>
         </tbody>
       </table>
@@ -461,5 +463,5 @@ lead recommends  b</pre>
     </ul>
   </div>
 
-  <footer>Engineering OS · دليل الاستخدام للإصدار 0.1 كما صُمّم · القرارات D1–D39 في <span dir="ltr">docs/decisions.md</span></footer>
+  <footer>Engineering OS · دليل الاستخدام للإصدار 0.1 كما بُني (المراحل 1–6) · القرارات D1–D48 في <span dir="ltr">docs/decisions.md</span></footer>
 </div>

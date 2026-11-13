@@ -154,17 +154,19 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
       <div class="panel">
         <h3>Check first</h3>
         <ul class="dash">
-          <li><b>Claude Code</b> recent enough to support fail-closed hooks. Tested on 2.1.321.</li>
-          <li><b>Node</b> on your PATH. The hooks are a small Node script with no dependencies.</li>
+          <li><b>Claude Code</b> 2.1.321 or later.</li>
+          <li><b>Node</b> 18 or later on your PATH (tested on 20 and 24, on Windows, macOS and Linux). The hooks are a small Node script with no dependencies.</li>
           <li><b>git</b>. Edits are only allowed inside a git repo.</li>
         </ul>
       </div>
       <div class="panel">
         <h3 class="hot">Install</h3>
 <pre><span class="c"># inside Claude Code</span>
-/plugin marketplace add &lt;marketplace&gt;
-/plugin install engos@&lt;marketplace&gt;</pre>
-        <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">The marketplace name is set when the plugin is published.</p>
+/plugin marketplace add eslamatwa/engineering-os
+/plugin install engos@engineering-os
+
+<span class="c"># or from a terminal</span>
+claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
       </div>
     </div>
     <p class="note">If Node is missing or Claude Code is too old, Engineering OS doesn't fail silently. It blocks edits and tells you what to install or update.</p>
@@ -275,19 +277,19 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <h2><span class="n">5.</span> When It Asks About Fable</h2>
     <p class="intro">Fable is for the hardest work, like architecture and migrations, and not every plan includes it. So it's never used without your yes.</p>
     <div class="grid2">
-      <div class="term"><span class="b">This task is a good fit for Fable.</span>
+      <div class="term"><span class="b">Step S2 is a good fit for Fable.</span>
 <span class="d">Moving sessions to tokens touches 14 files</span>
 <span class="d">across 3 services and needs a data migration.</span>
-<span class="d">If your plan doesn't include Fable, I'll use Opus.</span>
 
-<span class="y">[ Use Fable ]</span>  <span class="d">[ Use Opus ]</span></div>
+<span class="d">To use Fable, type:</span>  <span class="y">/engos:decide TASK-014 fable</span>
+<span class="d">To use Opus, type:</span>   /engos:decide TASK-014 no_fable</div>
       <div class="panel">
         <h3>How it works</h3>
         <ul class="dash">
-          <li>Asked per task, and your answer is recorded.</li>
-          <li>If a model turns out to be unavailable, the step drops one tier and you're told.</li>
+          <li>Asked per task, and your answer is recorded. Only your typed answer in the same session counts.</li>
+          <li>If <code>fable</code> isn't in <code>models.available</code>, you aren't asked: the step runs on Opus and you're told.</li>
+          <li>If a model call fails because your plan lacks it, it's marked unavailable and the step drops one tier.</li>
           <li>After 3 failed attempts a task stops; Fable then appears only as one of the options you can pick.</li>
-          <li>Want to be asked before Opus too? Add it to <code>ask_first</code> in <code>config.yaml</code>.</li>
         </ul>
       </div>
     </div>
@@ -299,8 +301,8 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <p class="intro">Agents run in the background, so there are three ways to see what they're doing.</p>
     <div class="term"><span class="d">◆ engos</span>  TASK-012 standard │ <span class="b">lead opus</span> │ <span class="g">scout ✓</span> │ <span class="b">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="y">⚠ 1 approval</span></div>
     <div class="grid3" style="margin-top:16px">
-      <div class="panel"><h3 class="hot">Status line</h3><p>Always under the prompt: task, class, each agent with its model and step, attempts, approvals waiting.</p></div>
-      <div class="panel"><h3 class="hot">/engos:view</h3><p>A live graph of the agents with a timeline, the proof collected, pending approvals and blocked tasks. In the Desktop app it opens beside the chat. It's view-only and can't approve anything.</p></div>
+      <div class="panel"><h3 class="hot">Status line</h3><p>Always under the prompt: task, class, each agent with its model and step, attempts, failing checks, approvals waiting. Turn it on in <code>/engos:init</code>.</p></div>
+      <div class="panel"><h3 class="hot">/engos:view</h3><p>A live graph of the agents with a timeline, the proof collected and what's waiting for you. It refreshes every 2 seconds. In the Desktop app it opens beside the chat through a small local server (this machine only). It's view-only and can't approve anything.</p></div>
       <div class="panel"><h3 class="hot">/engos:status</h3><p>The same picture as text in the chat. Handy from your phone through Remote Control.</p></div>
     </div>
   </section>
@@ -312,20 +314,21 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <div class="grid2">
       <div class="panel">
         <h3>What you get</h3>
-<pre><span class="k">DEC-004</span> · TASK-012 blocked after 3 attempts
-tried   sonnet, sonnet, opus · AC-1 failed
+<pre><span class="k">TASK-012</span> blocked: step S2 failed its checks 3 times
+tried   sonnet, sonnet, opus
 state   2 files changed · lint passes · test fails
 options
-  a  one more attempt on Fable
-  b  amend AC-1: the test asserts old behaviour
-  c  stop; keep the diff on the branch
-lead recommends  b</pre>
+  retry  one more attempt on Opus
+  fable  one more attempt on Fable (if your plan has it)
+  stop   stop; keep the changes for review
+lead recommends  retry: the failing test needs …</pre>
       </div>
       <div class="panel">
         <h3 class="hot">How to answer</h3>
-<pre>/engos:decide DEC-004 b</pre>
+<pre>/engos:decide TASK-012 retry</pre>
         <p style="margin-top:12px">You also decide when a script changed a protected file, when the worker and reviewer disagree on a high_risk task, and on any security finding of medium or higher.</p>
-        <p>Environment problems, like a missing tool, don't use up attempts. Two in a row come to you.</p>
+        <p>Environment problems, like a missing tool, don't use up attempts. Two in one step come to you.</p>
+        <p>If the test itself is wrong, Claude proposes a change to the acceptance criteria. In a high_risk task you approve it with <code>/engos:decide TASK-… approve_amendment</code>.</p>
       </div>
     </div>
   </section>
@@ -370,11 +373,10 @@ lead recommends  b</pre>
         <thead><tr><th>Command</th><th>Who</th><th>What it does</th></tr></thead>
         <tbody>
           <tr><td><code>/engos:init</code></td><td>you</td><td>Set up the current project</td></tr>
-          <tr><td><code>/engos:decide TASK-… accept|stop</code></td><td>you</td><td>Decide on a task that stopped for you</td></tr>
+          <tr><td><code>/engos:decide TASK-… &lt;option&gt;</code></td><td>you</td><td>Answer a task that stopped for you. The message tells you the options: <code>accept</code>/<code>stop</code>, <code>retry</code>/<code>fable</code>, <code>fable</code>/<code>no_fable</code>, <code>close</code>, <code>validator</code>/<code>worker</code>, <code>approve_amendment</code>/<code>reject_amendment</code>.</td></tr>
           <tr><td><code>/engos:class TASK-… standard</code></td><td>you</td><td>Lower a task's class. Built-in safety rules stay.</td></tr>
-          <tr><td><code>/engos:task &lt;summary&gt;</code></td><td>you or Claude</td><td>Open a task now instead of waiting for the first edit</td></tr>
-          <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>you</td><td>Turn the extra process off or on for this session</td></tr>
-          <tr><td><code>/engos:status</code></td><td>anyone</td><td>Show the current task and agents as text</td></tr>
+                    <tr><td><code>/engos:pause</code> · <code>/engos:resume</code></td><td>you</td><td>Turn the extra process off or on for this session</td></tr>
+          <tr><td><code>/engos:status</code></td><td>anyone</td><td>Show the current task, agents, checks and what's waiting, as text</td></tr>
           <tr><td><code>/engos:view</code></td><td>anyone</td><td>Open the live graph</td></tr>
         </tbody>
       </table>
@@ -444,7 +446,7 @@ lead recommends  b</pre>
           <tr><td>"Outside the plan's scope"</td><td>The change touches files the plan didn't list.</td><td>Let Claude widen the scope (twice per task), or approve a decision.</td></tr>
           <tr><td>My decision was ignored</td><td>Typed in another session, or after the session was resumed.</td><td>Ask Claude to run <code>engos task rearm TASK-…</code>, then type the decision again in this session.</td></tr>
           <tr><td>Tests passed but the task won't close</td><td>They weren't run through <code>engos check</code>, or ran before the last edit.</td><td>Ask Claude to run <code>engos check test</code> again.</td></tr>
-          <tr><td>No status line in the Desktop app</td><td>The status line may be terminal-only.</td><td>Use <code>/engos:view</code>; it opens beside the chat.</td></tr>
+          <tr><td>No status line</td><td>It's off unless you chose it in <code>/engos:init</code>, and it may not show in the Desktop app.</td><td>Run <code>/engos:init</code> again and say yes to the status line, or use <code>/engos:view</code>, which opens beside the chat.</td></tr>
           <tr><td>It keeps asking about a command</td><td>Unknown commands need approval in high_risk tasks.</td><td>Add it to <code>known_commands</code>.</td></tr>
         </tbody>
       </table>
@@ -462,5 +464,5 @@ lead recommends  b</pre>
     </ul>
   </div>
 
-  <footer>Engineering OS · user guide for v0.1 as designed · decisions D1–D39 in docs/decisions.md</footer>
+  <footer>Engineering OS · user guide for v0.1 as built (phases 1–6) · decisions D1–D48 in docs/decisions.md</footer>
 </div>

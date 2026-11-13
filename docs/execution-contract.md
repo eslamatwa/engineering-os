@@ -5,19 +5,20 @@ How a task moves from request to close, and the records each step leaves. Rules 
 ## Task lifecycle
 
 ```text
-idle ──(first edit, inside trivial budget)──────────────▶ trivial_edit (auto task)
-idle ──(lead runs intake, or /engos:task)───▶ profiled ──▶ planned ──▶ active
-trivial_edit ──(budget exceeded or floor hit)──▶ upgrade_pending ──(profile + plan)──▶ active
-active ──(high_risk path needed)──▶ upgrade_pending ──(scope approval)──▶ active
-active ──(violation detected after a command)──▶ needs_human
-active ──▶ validating ──(evidence complete)──▶ complete
-validating ──(3 attempts used | dispute for human)──▶ blocked | needs_human
-any ──(external action)──▶ awaiting_approval ──▶ previous state
+idle ──(first edit or command, inside trivial budget)────▶ open (trivial_edit, auto task)
+idle ──(engos task open)────────────────────────────────▶ open
+open ──(class raised; profile or plan missing)──▶ upgrade_pending ──(engos profile set / plan set)──▶ open
+open ──(violation, 3 failed attempts, 2 env errors, dispute or amendment for the user)──▶ needs_human
+needs_human ──(/engos:decide …)──▶ open | closed
+open ──(engos task close, evidence complete)──▶ closed
 ```
+
+Task states in v0.1: `open`, `upgrade_pending`, `needs_human`, `closed`. Approvals don't change the state: the gate asks through Claude Code's prompt and the call either runs or doesn't (D46). A deep-tier step waiting for the user's yes keeps the task `open` with `deep_pending` set.
 
 - `idle` is the `question` class: no record, reading is free.
 - In `upgrade_pending`, every write is denied until the missing profile, plan or approval exists. Reading stays allowed.
-- Only `engos` CLI commands change state. The gate denies hand edits to state files.
+- Only `engos` CLI commands and hooks change state. The gate denies hand edits to state files.
+- Besides the blocks below, a profile also holds `steps`/`step_state` (planned steps and their status), `agents` (every subagent launch: type, step, tier, model requested and actual, status, files it changed, result), `reviews`, `disputes`, `facts`, `evidence.checks`, `approved_files` and `lead_files` (D47).
 
 ## Task profile
 
@@ -188,9 +189,13 @@ used_at: null
 | `profile.declared` | CLI | declared block |
 | `class.changed` | hook | `from`, `to`, `rule_id`, `trigger` |
 | `step.assigned` | CLI | `step`, `role`, `tier`, `rule_id` |
-| `step.started` / `step.ended` | hook | `agent_id`, `model_requested`, `model_actual` (`unknown` until verified) |
+| `step.briefed` | CLI | `step`, `attempt`, `tier`, `model` |
+| `step.started` / `step.ended` | hook | `agent_id`, `model_requested`, `model_actual`, files changed |
+| `agent.model` / `model.mismatch` | hook | real model from the Agent call's `resolvedModel` |
+| `step.report_rejected` / `step.report_problems` | hook | what was wrong with a subagent's report |
+| `fact.added` | CLI | `kind: verified\|assumed`, `source` |
 | `gate.denied` | hook | `tool`, `rule_id`, input hash |
-| `evidence.recorded` | hook | `ac`, `command`, `exit`, `output_sha256` |
+| `evidence.recorded` | CLI | `name`, `command`, `exit`, `output_sha256`, `label` |
 | `validation.verdict` | hook | `verdict`, `findings` |
 | `dispute.opened` / `dispute.resolved` | CLI | `resolved_by: lead\|human`, `reason` |
 | `criteria.amended` / `scope.amended` | CLI | `before`, `after`, `by`, `reason` |
@@ -211,11 +216,16 @@ The only writer of task state. Lives in the plugin's `bin/` and is on PATH for t
 
 | Command | Does |
 | --- | --- |
-| `engos task open\|status\|close` | Open a task, show it, close it (refuses without required evidence) |
+| `engos init` | Create `.engos/` (`--models`, `--check name=cmd`, `--known cmd`, `--deny-rules`, `--status-line`, `--git-init`) |
+| `engos doctor` | Self-check: Node, Claude Code version, config, git |
+| `engos task open\|status\|close\|rearm` | Open a task, show it, close it (refuses without required evidence), re-ask a decision after a resume |
 | `engos profile set` | Write the declared block |
-| `engos plan set` | Write steps, scope and acceptance criteria |
-| `engos step brief S2` | Print the brief for a step |
+| `engos plan set` | Write scope, acceptance criteria and steps (`--steps "S1:locate,S2:implement,S3:verify"`) |
+| `engos step add\|list\|brief S2` | Add steps, list them, print a step's brief with the exact subagent type and model |
+| `engos dispute open\|settle` | Record a worker/validator dispute; the lead settles one per standard task, the rest go to the user (D25) |
 | `engos scope amend` | Widen scope (max 2 per task, unprotected paths only) |
 | `engos criteria amend` | Change acceptance criteria with a reason |
 | `engos facts add` | Add a verified fact (needs a source) or an assumption |
-| `engos check <name>` | Run the exact configured check and record its exit code. The only way checks count as evidence (D36). |
+| `engos check <name>` | Run the exact configured check and record its exit code. The only way checks count as evidence (D36). Labels the result (`passed`, `check_failed`, `env_error`) and moves escalation on. |
+| `engos status` | The status line and every open task as text |
+| `engos view [--open\|--serve]` | Write the live view page; `--serve` runs it on 127.0.0.1:4317 |
