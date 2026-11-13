@@ -752,6 +752,38 @@ function cmdView(args) {
 }
 
 // ---------------------------------------------------------------------------
+// recommend (D50): official plugins that fit this project. Never installs.
+// ---------------------------------------------------------------------------
+function cmdRecommend(args) {
+  const root = core.findProjectRoot(process.cwd()) || gitTop(process.cwd()) || process.cwd();
+  const Rec = require(path.join(__dirname, 'engos-recommend.js'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(core.PLUGIN_ROOT, 'defaults', 'recommendations.json'), 'utf8'));
+  const out = Rec.recommend(root, cfg, Rec.catalog(args.claude && args.claude !== true ? String(args.claude) : null), { limit: Number(args.limit) || undefined, includeInstalled: !!args.all });
+  if (out.error) fail(out.error);
+  if (args.json) return console.log(JSON.stringify(out, null, 2));
+  const show = (title, list) => {
+    if (!list.length) return;
+    console.log('');
+    console.log(title);
+    for (const r of list) {
+      console.log('  ' + r.name + (r.installs ? '  (' + r.installs.toLocaleString('en-US') + ' installs)' : '') + (r.installed ? '  [installed]' : ''));
+      console.log('    why: ' + r.why);
+      console.log('    what: ' + r.description);
+      console.log('    install in a session:  ' + r.install_in_session);
+      console.log('    or in a terminal:      ' + r.install_in_terminal);
+    }
+  };
+  console.log('Recommended for this project, from Anthropic\'s official marketplace (' + out.marketplace + '). Engineering OS never installs anything: run the commands you want yourself.');
+  show('Skills and workflows', out.groups.skills);
+  show('MCP servers (connect Claude to your tools)', out.groups.mcp);
+  show('Code intelligence (language servers)', out.groups.code);
+  const n = out.groups.skills.length + out.groups.mcp.length + out.groups.code.length;
+  if (!n) console.log('\nNothing new to recommend.');
+  if (out.already_installed.length) console.log('\nAlready installed: ' + out.already_installed.join(', '));
+  console.log('\nAfter installing, start a new session. Tools from an MCP server ask before each call (D49); add read-only ones to mcp_allowlist in .engos/config.yaml if the prompts get in the way.');
+}
+
+// ---------------------------------------------------------------------------
 function main() {
   process.on('exit', () => { try { const r = core.dirtyRoot(); if (r) require(path.join(__dirname, 'engos-status.js')).writeStatus(r); } catch (_) { /* best effort */ } });
   const args = parseArgs(process.argv.slice(2));
@@ -770,12 +802,13 @@ function main() {
     case 'facts': return cmdFacts(args);
     case 'status': return cmdStatus(args);
     case 'view': return cmdView(args);
+    case 'recommend': return cmdRecommend(args);
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open]                       write the live view page and print its address\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open|--serve]               write the live view page and print its address\n  recommend [--json] [--all]          official plugins (skills, MCP servers) that fit this project, with install commands\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

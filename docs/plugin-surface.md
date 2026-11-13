@@ -11,7 +11,7 @@ plugin/
 │   ├── scout.md       # read-only, fast tier (haiku)
 │   ├── worker.md      # model set per call by the router, checked by the gate
 │   └── validator.md   # no Edit / Write
-├── commands/          # init, status, view, decide, class, pause, resume
+├── commands/          # init, status, view, recommend, decide, class, pause, resume
 ├── hooks/hooks.json   # see docs/hooks.md
 ├── bin/engos, engos.cmd   # the CLI, on PATH for the Bash tool
 ├── scripts/
@@ -25,10 +25,11 @@ plugin/
 │   ├── engos-orchestrate.js # steps, routing, Agent gate, reports, escalation, disputes
 │   ├── engos-status.js      # status.json and the live view data
 │   ├── engos-statusline.js  # the status line (copied to .engos/statusline.js)
+│   ├── engos-recommend.js   # official plugin recommendations (D50)
 │   └── vendor/js-yaml.min.js
 ├── view/index.html    # the live view page
 ├── templates/         # BRIEF.md, STATE.yaml
-└── defaults/          # rules.json, policies.json, agents.json, compiled from config/*.yaml (D40)
+└── defaults/          # rules, policies, agents, recommendations (JSON), compiled from config/*.yaml (D40)
 ```
 
 There are no skills in v0.1. A `CLAUDE.md` at the plugin root is not loaded as context, so the lead is guided by the `SessionStart` summary, by every refusal (which says exactly what to run next), by `engos step brief`, and by the role cards injected into subagents.
@@ -42,6 +43,7 @@ There are no skills in v0.1. A `CLAUDE.md` at the plugin root is not loaded as c
 | `/engos:class TASK-xxx <class>` | human | Lowers a class (hard gates stay) |
 | `/engos:pause` / `/engos:resume` | human | Turns ceremony off for this session; hard gates stay |
 | `/engos:status` | anyone | Runs `engos status`: the status line, each open task with steps, agents, checks and reviews, what is waiting for the user, recent events |
+| `/engos:recommend` | anyone | Runs `engos recommend`: official plugins (skills, MCP servers, language servers) that fit this project, with why and the install commands. Never installs (D50) |
 | `/engos:view` | anyone | Opens the live graph page: `engos view --open` (file page), or `engos view --serve` (read-only server on 127.0.0.1:4317) where the browser shows local files as static snapshots |
 
 Approvals have no command: Claude Code's own Allow/Deny prompt asks the user (D46).

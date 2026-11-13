@@ -4,7 +4,7 @@ This repo holds the design, and later the source, of Engineering OS: a Claude Co
 
 ## Sources of truth, in order
 
-1. `docs/decisions.md`: agreed decisions D1–D49. Don't contradict one without the owner agreeing to a new D-number.
+1. `docs/decisions.md`: agreed decisions D1–D50. Don't contradict one without the owner agreeing to a new D-number.
 2. `config/*.yaml`: the rules that implement the decisions.
 3. `docs/hooks.md`, `docs/execution-contract.md`, `docs/plugin-surface.md`.
 4. `docs/engos-architecture.html` and `docs/architecture.md`: summaries; fix them if they drift from 1–3.

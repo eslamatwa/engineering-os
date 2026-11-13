@@ -57,3 +57,40 @@ test('H6: a project can allow read-only tools, but never the terminal runner; pa
   hook('prompt-expansion', dir, { prompt: '/engos:pause' });
   assert.ok(isAsk(hook('pre-tool-use', dir, { tool_name: 'mcp__github__create_issue', tool_input: { t: 'y' } })));
 });
+
+test('D50: recommendations come only from the official marketplace, fit the project, and skip installed ones', () => {
+  const Rec = require(path.join(REPO, 'plugin', 'scripts', 'engos-recommend.js'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(REPO, 'plugin', 'defaults', 'recommendations.json'), 'utf8'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engos-p7-rec-'));
+  cp.execFileSync('git', ['init', '-q'], { cwd: dir });
+  cp.execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/acme/shop.git'], { cwd: dir });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ dependencies: { next: '15', stripe: '1' } }));
+  fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+  fs.mkdirSync(path.join(dir, 'app'));
+  fs.writeFileSync(path.join(dir, 'app', 'page.tsx'), 'export default 1');
+  const off = (name, d, n) => ({ name, description: d, installCount: n, marketplaceName: 'claude-plugins-official' });
+  const cat = {
+    available: [
+      off('code-review', 'Automated code review', 400), off('security-guidance', 'Security review', 300),
+      off('github', 'Official GitHub MCP server', 350), off('typescript-lsp', 'TypeScript language server', 200),
+      off('frontend-design', 'Frontend design skill', 900), off('stripe', 'Stripe development plugin', 80),
+      off('vercel', 'Vercel deployment integration', 250),
+      { name: 'stripe-unofficial', description: 'x', marketplaceName: 'some-other-market' },
+      { name: 'playwright', description: 'Browser MCP server', marketplaceName: 'anthropic-plugin-directory' }, // not the official marketplace
+    ],
+    installed: [{ id: 'security-guidance@claude-plugins-official' }],
+  };
+  const out = Rec.recommend(dir, cfg, cat, {});
+  const names = [].concat(out.groups.skills, out.groups.mcp, out.groups.code).map((x) => x.name);
+  for (const n of ['code-review', 'github', 'typescript-lsp', 'frontend-design', 'stripe', 'vercel']) assert.ok(names.includes(n), n + ' should be recommended');
+  assert.ok(!names.includes('security-guidance'), 'installed plugins are not recommended again');
+  assert.deepStrictEqual(out.already_installed, ['security-guidance']);
+  assert.ok(!names.includes('playwright') && !names.includes('stripe-unofficial'), 'only the official marketplace');
+  assert.deepStrictEqual(out.groups.mcp.map((x) => x.name), ['github']);
+  const gh = out.groups.mcp[0];
+  assert.strictEqual(gh.install_in_session, '/plugin install github@claude-plugins-official');
+  assert.strictEqual(gh.install_in_terminal, 'claude plugin install github@claude-plugins-official');
+  assert.match(gh.why, /GitHub/);
+  assert.deepStrictEqual(out.groups.skills.map((x) => x.name).slice(0, 2), ['frontend-design', 'code-review']); // by install count
+  assert.ok(Rec.recommend(dir, cfg, { error: 'no catalog' }, {}).error);
+});

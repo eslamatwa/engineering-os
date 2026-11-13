@@ -324,3 +324,8 @@ Still open: owner's author name, the Desktop status line and E3 (need the owner 
 - **Interactive live view:** select any node or step for details (model asked and actual, timing, files changed, the stored report with findings and limitations), event filters and expandable events, files with who changed them, open and last 8 closed tasks, pause updates. Checked in the browser pane at desktop and phone width (no horizontal scroll). Still read-only: the test checks there is no approve, allow, deny or decide control.
 
 All unit tests: 74 of 74.
+
+### Phase 7 additions: recommendations and benchmark
+
+- **Recommendations (D50):** `engos recommend` and `/engos:recommend`, also offered at the end of `/engos:init`. Tested with a fake catalog (official marketplace only, fits the project, installed ones skipped, exact install commands) and live on this repo (GitHub MCP, TypeScript language server, code-review, security-guidance). 75 of 75 unit tests.
+- **Benchmark:** see `docs/benchmark.md`. With Engineering OS the four tasks cost 13% more in total (+3% trivial, +7% bug fix, +12% analysis, +32% a 3-file feature). No agents were used, so routing savings were not measured.

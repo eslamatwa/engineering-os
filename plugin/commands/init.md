@@ -21,4 +21,6 @@ Set up Engineering OS in this project. Follow these steps in order and keep the 
 
 5. Show the user what was created, then suggest two things: fill in `.engos/BRIEF.md`, and add their sensitive folders under `protected_paths` in `.engos/config.yaml`. Tell them a new session picks up everything automatically, and that `/engos:view` opens the live view.
 
+6. Then run `engos recommend` and show the user, in a few lines, the official skills and MCP servers that fit this project with their install commands (see /engos:recommend). Don't install anything.
+
 Never edit files under `.engos/` yourself during setup; `engos init` writes them.

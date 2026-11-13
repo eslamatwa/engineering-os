@@ -1,0 +1,458 @@
+{
+  "schema": "engos/recommendations@1",
+  "marketplace": "claude-plugins-official",
+  "limit_per_group": 5,
+  "rules": [
+    {
+      "when": {
+        "always": true
+      },
+      "plugins": [
+        "code-review",
+        "security-guidance"
+      ],
+      "why": "independent review of Claude's changes before they land"
+    },
+    {
+      "when": {
+        "git_remote": "github.com"
+      },
+      "plugins": [
+        "github"
+      ],
+      "why": "the repo is on GitHub: issues and pull requests from Claude"
+    },
+    {
+      "when": {
+        "git_remote": "gitlab"
+      },
+      "plugins": [
+        "gitlab"
+      ],
+      "why": "the repo is on GitLab"
+    },
+    {
+      "when": {
+        "files": [
+          "tsconfig.json"
+        ],
+        "ext": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      "plugins": [
+        "typescript-lsp"
+      ],
+      "why": "TypeScript code: precise go-to-definition and type errors"
+    },
+    {
+      "when": {
+        "files": [
+          "package.json"
+        ],
+        "ext": [
+          ".js",
+          ".jsx",
+          ".mjs"
+        ]
+      },
+      "plugins": [
+        "typescript-lsp"
+      ],
+      "why": "JavaScript code: precise code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "pyproject.toml",
+          "requirements.txt",
+          "setup.py"
+        ],
+        "ext": [
+          ".py"
+        ]
+      },
+      "plugins": [
+        "pyright-lsp"
+      ],
+      "why": "Python code: type checking and code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "go.mod"
+        ],
+        "ext": [
+          ".go"
+        ]
+      },
+      "plugins": [
+        "gopls-lsp"
+      ],
+      "why": "Go code: code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "Cargo.toml"
+        ],
+        "ext": [
+          ".rs"
+        ]
+      },
+      "plugins": [
+        "rust-analyzer-lsp"
+      ],
+      "why": "Rust code: code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "pom.xml",
+          "build.gradle",
+          "build.gradle.kts"
+        ],
+        "ext": [
+          ".java"
+        ]
+      },
+      "plugins": [
+        "jdtls-lsp"
+      ],
+      "why": "Java code: code navigation"
+    },
+    {
+      "when": {
+        "ext": [
+          ".kt"
+        ]
+      },
+      "plugins": [
+        "kotlin-lsp"
+      ],
+      "why": "Kotlin code: code navigation"
+    },
+    {
+      "when": {
+        "ext": [
+          ".cs"
+        ],
+        "files": [
+          "*.csproj",
+          "*.sln"
+        ]
+      },
+      "plugins": [
+        "csharp-lsp"
+      ],
+      "why": "C# code: code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "composer.json"
+        ],
+        "ext": [
+          ".php"
+        ]
+      },
+      "plugins": [
+        "php-lsp"
+      ],
+      "why": "PHP code: code navigation"
+    },
+    {
+      "when": {
+        "ext": [
+          ".swift"
+        ]
+      },
+      "plugins": [
+        "swift-lsp"
+      ],
+      "why": "Swift code: code navigation"
+    },
+    {
+      "when": {
+        "ext": [
+          ".c",
+          ".cpp",
+          ".cc",
+          ".h",
+          ".hpp"
+        ]
+      },
+      "plugins": [
+        "clangd-lsp"
+      ],
+      "why": "C/C++ code: code navigation"
+    },
+    {
+      "when": {
+        "files": [
+          "Gemfile"
+        ],
+        "ext": [
+          ".rb"
+        ]
+      },
+      "plugins": [
+        "ruby-lsp"
+      ],
+      "why": "Ruby code: code navigation"
+    },
+    {
+      "when": {
+        "deps": [
+          "react",
+          "vue",
+          "svelte",
+          "next",
+          "nuxt",
+          "@angular/core",
+          "astro",
+          "solid-js"
+        ],
+        "ext": [
+          ".tsx",
+          ".jsx",
+          ".vue",
+          ".svelte"
+        ]
+      },
+      "plugins": [
+        "frontend-design"
+      ],
+      "why": "a web front end: better-designed UI"
+    },
+    {
+      "when": {
+        "deps": [
+          "react",
+          "vue",
+          "svelte",
+          "next",
+          "nuxt",
+          "@angular/core",
+          "@playwright/test",
+          "playwright"
+        ],
+        "files": [
+          "playwright.config.*"
+        ]
+      },
+      "plugins": [
+        "playwright"
+      ],
+      "why": "a web app: Claude can open it in a browser and test it"
+    },
+    {
+      "when": {
+        "files": [
+          "package.json",
+          "pyproject.toml",
+          "requirements.txt",
+          "go.mod",
+          "Cargo.toml",
+          "Gemfile",
+          "composer.json"
+        ]
+      },
+      "plugins": [
+        "context7"
+      ],
+      "why": "uses third-party libraries: up-to-date docs instead of guesses"
+    },
+    {
+      "when": {
+        "deps": [
+          "next"
+        ],
+        "files": [
+          "vercel.json",
+          "next.config.*"
+        ]
+      },
+      "plugins": [
+        "vercel"
+      ],
+      "why": "Next.js or Vercel config: deployments and logs"
+    },
+    {
+      "when": {
+        "files": [
+          "netlify.toml"
+        ]
+      },
+      "plugins": [
+        "netlify-skills"
+      ],
+      "why": "Netlify config"
+    },
+    {
+      "when": {
+        "files": [
+          "wrangler.toml",
+          "wrangler.json"
+        ]
+      },
+      "plugins": [
+        "cloudflare"
+      ],
+      "why": "Cloudflare Workers config"
+    },
+    {
+      "when": {
+        "deps": [
+          "@supabase/supabase-js",
+          "supabase"
+        ],
+        "files": [
+          "supabase/config.toml"
+        ]
+      },
+      "plugins": [
+        "supabase"
+      ],
+      "why": "uses Supabase"
+    },
+    {
+      "when": {
+        "deps": [
+          "firebase",
+          "firebase-admin"
+        ],
+        "files": [
+          "firebase.json"
+        ]
+      },
+      "plugins": [
+        "firebase"
+      ],
+      "why": "uses Firebase"
+    },
+    {
+      "when": {
+        "deps": [
+          "prisma",
+          "@prisma/client"
+        ],
+        "files": [
+          "prisma/schema.prisma"
+        ]
+      },
+      "plugins": [
+        "prisma"
+      ],
+      "why": "uses Prisma"
+    },
+    {
+      "when": {
+        "deps": [
+          "mongodb",
+          "mongoose",
+          "pymongo"
+        ]
+      },
+      "plugins": [
+        "mongodb"
+      ],
+      "why": "uses MongoDB"
+    },
+    {
+      "when": {
+        "deps": [
+          "@neondatabase/serverless"
+        ]
+      },
+      "plugins": [
+        "neon"
+      ],
+      "why": "uses Neon Postgres"
+    },
+    {
+      "when": {
+        "deps": [
+          "redis",
+          "ioredis"
+        ]
+      },
+      "plugins": [
+        "redis-development"
+      ],
+      "why": "uses Redis"
+    },
+    {
+      "when": {
+        "deps": [
+          "stripe",
+          "@stripe/stripe-js"
+        ]
+      },
+      "plugins": [
+        "stripe"
+      ],
+      "why": "uses Stripe"
+    },
+    {
+      "when": {
+        "deps": [
+          "@sentry/node",
+          "@sentry/react",
+          "@sentry/nextjs",
+          "sentry-sdk"
+        ],
+        "files": [
+          "sentry.properties",
+          ".sentryclirc"
+        ]
+      },
+      "plugins": [
+        "sentry"
+      ],
+      "why": "uses Sentry: errors and stack traces from Claude"
+    },
+    {
+      "when": {
+        "deps": [
+          "dd-trace",
+          "ddtrace"
+        ]
+      },
+      "plugins": [
+        "datadog"
+      ],
+      "why": "uses Datadog"
+    },
+    {
+      "when": {
+        "ext": [
+          ".tf"
+        ]
+      },
+      "plugins": [
+        "terraform"
+      ],
+      "why": "Terraform code"
+    },
+    {
+      "when": {
+        "files": [
+          "serverless.yml",
+          "template.yaml",
+          "cdk.json"
+        ],
+        "deps": [
+          "aws-cdk-lib",
+          "@aws-sdk/client-s3",
+          "boto3"
+        ]
+      },
+      "plugins": [
+        "aws-core"
+      ],
+      "why": "AWS code or config"
+    }
+  ]
+}

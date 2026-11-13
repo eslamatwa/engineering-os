@@ -11,7 +11,7 @@ const repo = path.resolve(__dirname, '..');
 const outDir = path.join(repo, 'plugin', 'defaults');
 fs.mkdirSync(outDir, { recursive: true });
 
-for (const name of ['rules', 'policies', 'agents']) {
+for (const name of ['rules', 'policies', 'agents', 'recommendations']) {
   const src = path.join(repo, 'config', name + '.yaml');
   const data = yaml.load(fs.readFileSync(src, 'utf8'));
   fs.writeFileSync(path.join(outDir, name + '.json'), JSON.stringify(data, null, 2) + '\n', 'utf8');

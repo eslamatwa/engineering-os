@@ -4,7 +4,7 @@ Direction only. Nothing here is a decision. Each version gets its own design rou
 
 | Version | Focus | Notes |
 | --- | --- | --- |
-| **v0.1** | Repository engineering | Current design (D1–D49). Code inside a git repo, every Claude Code surface. |
+| **v0.1** | Repository engineering | Current design (D1–D50). Code inside a git repo, every Claude Code surface. |
 | v0.2 | Linux, Docker, infrastructure | Commands on real machines need a new risk model: read-only probes, changes, production. Also: read-only monitoring MCP for the Desktop Chat tab with a project index and project selector (D39). Prebuilt hook binaries instead of Node (D26). |
 | v0.3 | Databases, networking, MCP integrations | External systems as first-class steps with their own approvals. |
 | v0.4 | Desktop execution bridge, advanced dashboard | Only after the approval model has been proven in use. Cost and token views if the platform exposes usage data. |

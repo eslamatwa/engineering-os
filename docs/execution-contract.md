@@ -229,3 +229,4 @@ The only writer of task state. Lives in the plugin's `bin/` and is on PATH for t
 | `engos check <name>` | Run the exact configured check and record its exit code. The only way checks count as evidence (D36). Labels the result (`passed`, `check_failed`, `env_error`) and moves escalation on. |
 | `engos status` | The status line and every open task as text |
 | `engos view [--open\|--serve]` | Write the live view page; `--serve` runs it on 127.0.0.1:4317 |
+| `engos recommend [--json] [--all]` | Official plugins that fit this project, with install commands (D50). Reads the catalog with `claude plugin list --available --json`; never installs |

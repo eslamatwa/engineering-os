@@ -14,7 +14,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os
 
 Or inside a Claude Code session: `/plugin marketplace add eslamatwa/engineering-os`, then `/plugin install engos@engineering-os`.
 
-Then, in each project, run `/engos:init`. It asks which models your plan includes and which commands prove the code works, and offers deny rules and a status line. After that, `/engos:status` shows what is happening and `/engos:view` opens the live view.
+Then, in each project, run `/engos:init`. It asks which models your plan includes and which commands prove the code works, offers deny rules and a status line, and recommends official skills and MCP servers that fit the project, with the commands to install them. After that, `/engos:status` shows what is happening, `/engos:view` opens the live view, and `/engos:recommend` shows the recommendations again.
 
 ## What it protects against
 
@@ -33,7 +33,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D49). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D50). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |
@@ -47,6 +47,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 | `tests/acceptance-scenarios.md` | Scenarios each build phase must pass |
 | `docs/build-plan.md` | Build phases and exit criteria |
 | `docs/phase-results.md` | Evidence for each finished build phase |
+| `docs/benchmark.md` | Cost with and without Engineering OS, measured |
 | `plugin/` | The plugin source (D41) |
 | `tools/` | Build and measurement scripts |
 | `docs/traceability.md` | Each decision and the scenario that checks it |
