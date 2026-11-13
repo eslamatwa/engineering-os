@@ -58,6 +58,7 @@ Source review: `docs/reviews/fable-architecture-review.md`.
 | D46 | From spike round 3: a hook's `ask` shows Claude Code's own Allow/Deny prompt in every interactive mode (default, auto, bypass), even with a settings allow rule, and headless turns it into a denial. So: single external actions (push, publish, network, destructive, unknown commands in high_risk) use that prompt in every mode, and every execution asks again, which makes them single-use without hashes or expiry. Protected files use the same prompt the first time each file is edited in a task; the file then stays approved for that task (max 24 hours). Typed commands remain only for decisions on blocked or needs_human tasks (`/engos:decide`), lowering a class (`/engos:class`) and pause/resume; D34 and D35 apply to them. Supersedes the typed-approval parts of D14, the fallback in D15, the expiry rules in D17 for actions, and D19 for prompts (a "No" isn't visible to hooks, so the model may ask again; nothing runs without a click). Context such as outgoing commits is recorded with the request and shown in `/engos:status` and the live view, because the prompt itself only shows the action. | 2026-11-13 |
 | D47 | Steps are optional in v0.1. A task without planned steps is done by the lead, which is cheapest. Once the plan has worker steps, the lead's own edits are integration fixes only: at most `budgets.lead_integration_edit.max_files` files, and the rest goes to workers (H3 rule 6). A step the lead plans in a trivial task still runs on a worker; `executor: lead` only means a trivial edit needs no step. Proposed in build phase 5; approved by the owner 2026-11-13. | 2026-11-13 |
 | D48 | Refines D42: the Claude Code version is read first from `AI_AGENT`, which Claude Code sets for its child processes (`claude-code_2-1-321_agent`), with no process spawn; `CLAUDE_CODE_EXECPATH --version` stays as the fallback. Only these two variables are read, and neither is logged. Proposed in build phase 7; approved by the owner 2026-11-13. | 2026-11-13 |
+| D49 | MCP tools are external actions (G-delivery): each call asks through Claude Code's own prompt, also when paused. Claude's own app tools pass without a prompt so the gate isn't noisy: `mcp__ccd_*`, the built-in browser, inline widgets, and reading the terminal (`config/policies.yaml` mcp). Running or opening a terminal through MCP always asks, because it would bypass the Bash gate; no list can allow it. A project can allow more tools or globs in `mcp_allowlist`. Approved by the owner 2026-11-13. | 2026-11-13 |
 
 ### D8 class requirements
 
@@ -99,7 +100,7 @@ never:     [".engos/approvals/**", ".engos/ledger*", ".claude/settings*.json", "
 ## Pending
 
 - With the owner at the machine: the status line in the Desktop app's Code tab (H2b), E3 (same results in terminal and Desktop), version detection in a terminal session (P14).
-- Owner decision: the MCP tool gate (H6) and which host tools (such as the Desktop app's own `mcp__ccd_*` tools) are allowed by default.
+- With the owner: the MCP gate (D49) in a real Desktop session, and how much a hook on every host MCP call costs there.
 - Owner decision: publishing (the repo is private; marketplace installs need it public or per-user access).
 - Owner review of values marked `# default, tune` in `config/`; they are placeholders, not decisions.
 

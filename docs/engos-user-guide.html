@@ -245,7 +245,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
       <table>
         <thead><tr><th>Kind</th><th>When</th><th>How you answer</th><th>Lasts</th></tr></thead>
         <tbody>
-          <tr><td>Single action</td><td>push, publish, network call, delete, unknown command in a high_risk task</td><td>Click Yes or No in the prompt</td><td>That one run; the next one asks again</td></tr>
+          <tr><td>Single action</td><td>push, publish, network call, delete, unknown command in a high_risk task, an external MCP tool (Slack, GitHub…). Claude's own app tools never ask.</td><td>Click Yes or No in the prompt</td><td>That one run; the next one asks again</td></tr>
           <tr><td>Protected file</td><td>The first edit of each protected file in a task</td><td>Click Yes or No in the prompt</td><td>That file, until the task closes, max 24 hours</td></tr>
           <tr><td>Decision</td><td>A command changed protected files without asking, so the task stopped</td><td>Type <code>/engos:decide TASK-… accept</code> or <code>stop</code></td><td>That decision only</td></tr>
         </tbody>
@@ -302,7 +302,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
     <div class="term"><span class="d">◆ engos</span>  TASK-012 standard │ <span class="b">lead opus</span> │ <span class="g">scout ✓</span> │ <span class="b">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="y">⚠ 1 approval</span></div>
     <div class="grid3" style="margin-top:16px">
       <div class="panel"><h3 class="hot">Status line</h3><p>Always under the prompt: task, class, each agent with its model and step, attempts, failing checks, approvals waiting. Turn it on in <code>/engos:init</code>.</p></div>
-      <div class="panel"><h3 class="hot">/engos:view</h3><p>A live graph of the agents with a timeline, the proof collected and what's waiting for you. It refreshes every 2 seconds. In the Desktop app it opens beside the chat through a small local server (this machine only). It's view-only and can't approve anything.</p></div>
+      <div class="panel"><h3 class="hot">/engos:view</h3><p>A live graph of the agents with a timeline, the proof collected and what's waiting for you. Select any agent or step to see its model, timing, the files it changed and its report. It refreshes every 2 seconds. In the Desktop app it opens beside the chat through a small local server (this machine only). It's view-only and can't approve anything.</p></div>
       <div class="panel"><h3 class="hot">/engos:status</h3><p>The same picture as text in the chat. Handy from your phone through Remote Control.</p></div>
     </div>
   </section>
@@ -399,7 +399,7 @@ lead recommends  retry: the failing test needs …</pre>
       <div class="panel">
         <h3 class="hot">Still on, always</h3>
         <ul class="dash">
-          <li>Your approval for push, publish, network and deletes</li>
+          <li>Your approval for push, publish, network, deletes and external MCP tools</li>
           <li>The built-in no-go files: approvals, ledger, Claude settings, hooks</li>
           <li>No production deploys</li>
         </ul>
@@ -464,5 +464,5 @@ lead recommends  retry: the failing test needs …</pre>
     </ul>
   </div>
 
-  <footer>Engineering OS · user guide for v0.1 as built (phases 1–6) · decisions D1–D48 in docs/decisions.md</footer>
+  <footer>Engineering OS · user guide for v0.1 as built (phases 1–6) · decisions D1–D49 in docs/decisions.md</footer>
 </div>

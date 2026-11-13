@@ -23,7 +23,7 @@ Status column: **verified** = confirmed in `docs/spike-results.md`; **pending** 
 | H3 | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Gate for file writes | block | built and tested, phase 2 |
 | H4 | `PreToolUse` | `Bash` | Gate for commands | block | built and tested, phase 2 (approvals: phase 3) |
 | H5 | `PreToolUse` | `Agent\|Task` | Gate for subagents and models | block | built and tested, phase 5 (P10) |
-| H6 | `PreToolUse` | `mcp__.*` | External tools need approval unless allowlisted | block | **not built**: needs the owner's call on which host tools (for example the Desktop app's own `mcp__ccd_*` tools) are allowed by default |
+| H6 | `PreToolUse` | `mcp__.*` | External tools ask through Claude Code's prompt every call; Claude's own app tools and the project's `mcp_allowlist` pass; the terminal runner always asks (D49). PostToolUse records the grant and observes changes like a command. | block | built and tested, phase 7; real Desktop run pending |
 | H7 | `PostToolUse` | `Bash` | Observe changes; record check results | default | built and tested, phase 2; message delivery verified (P2-E3) |
 | H8 | `PostToolUseFailure` | `Agent\|Task` | Free a failed launch; mark a model the account lacks as unavailable (D32). Checks don't need it: `engos check` records exit codes itself (D36). | default | built, phase 5; the failure text is matched loosely (pending a real failure) |
 | H9 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Update observed counts | default | built and tested, phase 2 |

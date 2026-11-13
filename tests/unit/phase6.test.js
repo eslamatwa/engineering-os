@@ -132,7 +132,8 @@ test('E1/E2: the live view gets the same data and has no control that approves o
   const html = fs.readFileSync(path.join(REPO, 'plugin', 'view', 'index.html'), 'utf8');
   assert.ok(!/fetch\(|XMLHttpRequest|<form|method=/i.test(html), 'the page sends nothing anywhere');
   const buttons = html.match(/<button[^>]*>/g) || [];
-  assert.ok(buttons.every((b) => /class="tab"/.test(b)), 'only task tabs are buttons');
+  assert.ok(buttons.every((b) => /class="(tab|btn-s)/.test(b)), 'only task tabs, filters and pause are buttons');
+  assert.ok(!/>\s*(Approve|Reject|Allow|Deny|Decide|Use Fable|Use Opus)\b/.test(html), 'no approve or decide control');
   assert.ok(!/https?:\/\//.test(html.replace(/<!--[\s\S]*?-->/g, '')), 'no external resources');
   // the approval is still pending: nothing in the view answered it
   assert.strictEqual(status(dir).approvals.length, 1);

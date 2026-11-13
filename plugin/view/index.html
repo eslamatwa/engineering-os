@@ -107,6 +107,36 @@ svg text { font-family: var(--f-ui); }
 footer { color: var(--ink-2); font-size: 12px; text-align: center; }
 @media (max-width: 900px) { .main, .bottom { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+/* interactive parts */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.btn-s { font: inherit; font-family: var(--f-mono); font-size: 12px; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.btn-s[aria-pressed="true"] { border-color: var(--sonnet); color: var(--sonnet); }
+.btn-s:focus-visible, .tab:focus-visible, .node:focus-visible, .stp:focus-visible, .feed li:focus-visible { outline: 2px solid var(--sonnet); outline-offset: 2px; }
+.tab.closed { color: var(--ink-2); }
+.node { cursor: pointer; outline: none; }
+.node:hover .n-box { stroke: var(--ink-2); }
+.node.sel .n-box { stroke: var(--ink); stroke-width: 2.4; }
+.stp { cursor: pointer; }
+.stp.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.feed li { cursor: pointer; }
+.feed li .more { display: none; grid-column: 3; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); background: var(--sunk); border-radius: 6px; padding: 6px 8px; margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feed li.open .more { display: block; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--ink-2); font-family: var(--f-mono); font-size: 11.5px; padding-top: 2px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.detail h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sub { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); margin: 14px 0 6px; }
+.list { margin: 0; padding-left: 18px; font-size: 13px; }
+.list li { margin: 2px 0; overflow-wrap: anywhere; }
+.sev { font-family: var(--f-mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); }
+.sev.high, .sev.critical { color: var(--bad); border-color: var(--bad); } .sev.medium { color: var(--warn); border-color: var(--warn); }
+.files { display: grid; gap: 4px; font-size: 13px; }
+.files div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.files div:last-child { border-bottom: 0; }
+.files code { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+@media (max-width: 900px) { .three { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -116,28 +146,34 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
 <script>
 'use strict';
 (function () {
-  var state = { status: null, selected: null, lastAt: 0 };
+  // Read-only: this page only reads status.js. Nothing here approves, decides or sends anything (E2, D34).
+  var state = { status: null, selected: null, sel: null, filter: 'all', open: {}, paused: false, lastAt: 0 };
   var MODEL = { haiku: 'var(--haiku)', sonnet: 'var(--sonnet)', opus: 'var(--opus)', fable: 'var(--fable)' };
+  var FILTERS = [['all', 'All'], ['agents', 'Agents'], ['checks', 'Checks'], ['gate', 'Gate'], ['you', 'You']];
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fam(m) { m = String(m || '').toLowerCase(); for (var k in MODEL) if (m.indexOf(k) >= 0) return k; return ''; }
   function hhmm(iso) { var d = new Date(iso); return isNaN(d) ? '' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
-  function ago(iso) {
-    var s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  function hms(iso) { var d = new Date(iso); return isNaN(d) ? '' : hhmm(iso) + ':' + String(d.getSeconds()).padStart(2, '0'); }
+  function dur(a, b) {
+    var s = Math.max(0, Math.round(((b ? Date.parse(b) : Date.now()) - Date.parse(a)) / 1000));
+    if (isNaN(s)) return '';
     if (s < 60) return s + 's'; var m = Math.floor(s / 60); if (m < 60) return m + 'm ' + (s % 60) + 's'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
   }
+  function ago(iso) { return dur(iso, null); }
   function cut(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
   function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function kv(rows) { return '<dl class="kv">' + rows.filter(function (r) { return r[1] !== '' && r[1] != null; }).map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + (r[2] ? r[1] : esc(r[1])) + '</dd>'; }).join('') + '</dl>'; }
+  function ul(items) { return items && items.length ? '<ul class="list">' + items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '<p class="empty">none</p>'; }
 
   // Called by status.js
   window.__engosStatus = function (s) {
     if (!s || s.schema !== 'engos/status@1') return;
     state.lastAt = Date.now();
-    if (state.status && state.status.generated_at === s.generated_at) { tick(); return; }
+    if (state.paused || (state.status && state.status.generated_at === s.generated_at)) { tick(); return; }
     state.status = s;
     render();
   };
-
   function poll() {
     var old = document.getElementById('engos-data');
     if (old) old.remove();
@@ -147,91 +183,75 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     sc.onerror = function () { tick(); };
     document.body.appendChild(sc);
   }
-
   function tick() {
     var el = document.getElementById('live');
     if (!el) return;
     var stale = !state.lastAt || Date.now() - state.lastAt > 8000;
-    el.className = 'live' + (stale ? ' stale' : '');
-    el.lastChild.textContent = stale ? 'not updating' : 'live · updated ' + (state.status ? ago(state.status.generated_at) : '') + ' ago';
+    el.className = 'live' + (stale || state.paused ? ' stale' : '');
+    el.lastChild.textContent = state.paused ? 'updates paused' : stale ? 'not updating' : 'live · updated ' + (state.status ? ago(state.status.generated_at) : '') + ' ago';
   }
 
+  function allTasks(s) { return (s.tasks || []).concat(s.recent || []); }
   function nodesFor(t) {
-    // One node per planned step (its latest launch), then unplanned launches (scouts, Explore, Plan).
-    var nodes = [];
-    var latest = {};
+    var nodes = [], latest = {};
     (t.agents || []).forEach(function (a) { if (a.step) latest[a.step] = a; });
-    (t.steps || []).forEach(function (s) { nodes.push({ step: s, agent: latest[s.id] || null }); });
-    (t.agents || []).forEach(function (a) { if (!a.step) nodes.push({ step: null, agent: a }); });
+    (t.steps || []).forEach(function (s) { nodes.push({ key: 'step:' + s.id, step: s, agent: latest[s.id] || null }); });
+    (t.agents || []).forEach(function (a) { if (!a.step) nodes.push({ key: 'agent:' + a.id, step: null, agent: a }); });
     return nodes.slice(-8);
   }
-
   function nodeState(n) {
     var a = n.agent, s = n.step;
     if (a && (a.status === 'running' || a.status === 'launched')) return 'run';
-    if (s && (s.status === 'blocked' || s.status === 'blocked_by_worker')) return 'bad';
+    if (s && /blocked/.test(s.status)) return 'bad';
     if (a && (a.status === 'failed' || a.result === 'check_failed')) return 'bad';
     if (a && a.status === 'stale') return 'warn';
     if (a) return 'ok';
     return 'wait';
   }
+  function waitingCount(s, t) {
+    return (s.approvals || []).filter(function (a) { return a.task_id === t.task_id || !a.task_id; }).length + (t.needs_human ? 1 : 0) + (t.deep_pending ? 1 : 0);
+  }
 
   function graph(t, s) {
-    var nodes = nodesFor(t);
-    var n = Math.max(nodes.length, 1);
-    var W = Math.max(680, 30 + n * 200);
-    var cx = W / 2;
-    var waiting = (s.approvals || []).filter(function (a) { return a.task_id === t.task_id || !a.task_id; }).length + (t.needs_human ? 1 : 0) + (t.deep_pending ? 1 : 0);
-    var out = [];
-    out.push('<svg viewBox="0 0 ' + W + ' 420" role="img" aria-label="' + esc('Agents working on ' + t.task_id + ': ' + nodes.length + ' step or agent nodes, ' + waiting + ' waiting for you') + '">');
-    // human -> lead
+    var nodes = nodesFor(t), n = Math.max(nodes.length, 1);
+    var W = Math.max(680, 30 + n * 200), cx = W / 2;
+    var waiting = t.closed_at ? 0 : waitingCount(s, t);
+    var out = ['<svg viewBox="0 0 ' + W + ' 420" role="group" aria-label="' + esc('Agents on ' + t.task_id + '. Select a box for details.') + '">'];
     out.push('<path class="e' + (waiting ? ' appr' : '') + '" d="M' + cx + ' 70 V138"/>');
     if (waiting) out.push('<text class="t-edge" x="' + (cx + 10) + '" y="102" style="fill:var(--warn)">' + esc(waiting + ' waiting for you') + '</text>');
-    // edges lead -> nodes
     var colW = (W - 30) / n;
     nodes.forEach(function (nd, i) {
-      var x = 15 + colW * i + colW / 2;
-      var st = nodeState(nd);
-      var cls = 'e' + (st === 'run' ? ' active flow' : st === 'wait' ? ' wait' : st === 'bad' ? ' bad' : '');
-      out.push('<path class="' + cls + '" d="M' + cx + ' 208 C ' + cx + ' 250, ' + x + ' 250, ' + x + ' 288"/>');
-      var label = nd.step ? nd.step.id + (st === 'run' ? ' running' : st === 'ok' ? ' → report ✓' : st === 'bad' ? ' ✗' : ' queued') : (nd.agent.type || '').replace('engos:', '');
-      out.push('<text class="t-edge" x="' + (x + 6) + '" y="272" ' + (st === 'run' ? 'style="fill:var(--sonnet)"' : '') + '>' + esc(cut(label, 22)) + '</text>');
+      var x = 15 + colW * i + colW / 2, st = nodeState(nd);
+      out.push('<path class="e' + (st === 'run' ? ' active flow' : st === 'wait' ? ' wait' : st === 'bad' ? ' bad' : '') + '" d="M' + cx + ' 208 C ' + cx + ' 250, ' + x + ' 250, ' + x + ' 288"/>');
+      var label = nd.step ? nd.step.id + (st === 'run' ? ' running' : st === 'ok' ? ' → report ✓' : st === 'bad' ? ' ✗' : ' queued') : String(nd.agent.type || '').replace('engos:', '');
+      out.push('<text class="t-edge" x="' + (x + 6) + '" y="272"' + (st === 'run' ? ' style="fill:var(--sonnet)"' : '') + '>' + esc(cut(label, 22)) + '</text>');
     });
-    // human node
-    out.push('<rect class="n-box n-human" x="' + (cx - 78) + '" y="16" width="156" height="54" rx="27"/>');
-    out.push('<circle cx="' + (cx - 50) + '" cy="43" r="6" style="fill:var(--human)"/>');
-    out.push('<text class="t-name" x="' + (cx - 36) + '" y="40">You</text>');
-    out.push('<text class="t-sub" x="' + (cx - 36) + '" y="56">' + esc(waiting ? waiting + ' waiting' : 'nothing waiting') + '</text>');
-    // lead node
-    out.push('<rect class="n-box n-lead" x="' + (cx - 94) + '" y="140" width="188" height="68" rx="10"/>');
-    out.push('<text class="t-name" x="' + (cx - 74) + '" y="167">Lead</text>');
-    out.push('<text class="t-mono" x="' + (cx + 80) + '" y="166" text-anchor="end">main session</text>');
+    out.push('<g class="node' + (state.sel === 'human' ? ' sel' : '') + '" data-sel="human" tabindex="0" role="button" aria-label="You: what is waiting">');
+    out.push('<rect class="n-box n-human" x="' + (cx - 78) + '" y="16" width="156" height="54" rx="27"/><circle cx="' + (cx - 50) + '" cy="43" r="6" style="fill:var(--human)"/>');
+    out.push('<text class="t-name" x="' + (cx - 36) + '" y="40">You</text><text class="t-sub" x="' + (cx - 36) + '" y="56">' + esc(waiting ? waiting + ' waiting' : 'nothing waiting') + '</text></g>');
     var running = nodes.filter(function (nd) { return nodeState(nd) === 'run'; })[0];
-    out.push('<text class="t-sub" x="' + (cx - 78) + '" y="190">' + esc(running ? 'Owns the task · watching ' + (running.step ? running.step.id : running.agent.id) : nodes.length ? 'Owns the task' : 'Working alone (no steps)') + '</text>');
-    // agent nodes
+    out.push('<g class="node' + (state.sel === 'lead' ? ' sel' : '') + '" data-sel="lead" tabindex="0" role="button" aria-label="Lead: task details">');
+    out.push('<rect class="n-box n-lead" x="' + (cx - 94) + '" y="140" width="188" height="68" rx="10"/>');
+    out.push('<text class="t-name" x="' + (cx - 74) + '" y="167">Lead</text><text class="t-mono" x="' + (cx + 80) + '" y="166" text-anchor="end">main session</text>');
+    out.push('<text class="t-sub" x="' + (cx - 78) + '" y="190">' + esc(t.closed_at ? 'Closed ' + ago(t.closed_at) + ' ago' : running ? 'Owns the task · watching ' + (running.step ? running.step.id : running.agent.id) : nodes.length ? 'Owns the task' : 'Working alone (no steps)') + '</text></g>');
     nodes.forEach(function (nd, i) {
-      var x0 = 15 + colW * i + (colW - 176) / 2;
-      var st = nodeState(nd);
-      var a = nd.agent, sp = nd.step;
-      var type = a ? String(a.type).replace('engos:', '') : sp.by;
-      var model = a ? fam(a.model_actual || a.model) : '';
-      var color = MODEL[model] || 'var(--ink-2)';
+      var x0 = 15 + colW * i + (colW - 176) / 2, st = nodeState(nd), a = nd.agent, sp = nd.step;
+      var type = a ? String(a.type).replace('engos:', '') : sp.by, model = a ? fam(a.model_actual || a.model) : '';
       var stroke = st === 'run' ? 'stroke:var(--sonnet);stroke-width:1.6' : st === 'bad' ? 'stroke:var(--bad);stroke-width:1.6' : st === 'wait' ? 'stroke-dasharray:4 4' : '';
+      out.push('<g class="node' + (state.sel === nd.key ? ' sel' : '') + '" data-sel="' + esc(nd.key) + '" tabindex="0" role="button" aria-label="' + esc(cap(type) + (sp ? ' ' + sp.id : '') + ': details') + '">');
       if (st === 'run') out.push('<rect class="ring" x="' + x0 + '" y="290" width="176" height="74" rx="10"/>');
       out.push('<rect class="n-box" x="' + x0 + '" y="290" width="176" height="74" rx="10" style="' + stroke + '"/>');
-      out.push('<circle cx="' + (x0 + 20) + '" cy="312" r="6" style="fill:' + color + '"/>');
+      out.push('<circle cx="' + (x0 + 20) + '" cy="312" r="6" style="fill:' + (MODEL[model] || 'var(--ink-2)') + '"/>');
       out.push('<text class="t-name" x="' + (x0 + 34) + '" y="317">' + esc(cap(type)) + '</text>');
       out.push('<text class="t-mono" x="' + (x0 + 160) + '" y="316" text-anchor="end">' + esc(model || (sp && sp.tier) || '') + '</text>');
-      var line1 = (sp ? sp.id + ' · ' + (sp.role || sp.kind) : (a.role_card || a.role || ''));
+      var line1 = sp ? sp.id + ' · ' + (sp.role || sp.kind) : (a.role_card || a.role || '');
       var line2;
       if (st === 'run') line2 = (sp && sp.by === 'worker' ? 'attempt ' + Math.max(a.attempt || 1, sp.failures) + '/' + sp.allowed + ' · ' : '') + 'running ' + ago(a.launched_at);
       else if (st === 'wait') line2 = 'queued · ' + (sp.tier || '');
       else if (st === 'bad') line2 = sp && sp.failures ? sp.failures + ' failed attempt' + (sp.failures > 1 ? 's' : '') : (a && a.status === 'failed' ? 'agent call failed' : 'blocked');
       else line2 = 'done' + (a.files && a.files.length ? ' · ' + a.files.length + ' file' + (a.files.length > 1 ? 's' : '') : '') + (a.report_status && a.report_status !== 'done' ? ' · ' + a.report_status : '');
-      out.push('<text class="t-sub" x="' + (x0 + 16) + '" y="338">' + esc(cut(line1, 28)) + '</text>');
-      out.push('<text class="t-mono" x="' + (x0 + 16) + '" y="354">' + esc(cut(line2, 30)) + '</text>');
+      out.push('<text class="t-sub" x="' + (x0 + 16) + '" y="338">' + esc(cut(line1, 28)) + '</text><text class="t-mono" x="' + (x0 + 16) + '" y="354">' + esc(cut(line2, 30)) + '</text></g>');
     });
-    // gate band
     var g = s.gate || {};
     out.push('<rect class="gate-band" x="15" y="384" width="' + (W - 30) + '" height="26" rx="6"/>');
     out.push('<text class="t-mono" x="28" y="401">' + esc('GATE · ' + (g.denied_recent || 0) + ' blocked recently' + (g.last_denied ? ' · last: ' + g.last_denied.tool + ' ' + g.last_denied.rule_id + ' at ' + hhmm(g.last_denied.at) : '') + ' · ' + t.files.count + ' files changed (+' + t.files.added + ' −' + t.files.deleted + ')') + '</text>');
@@ -239,44 +259,92 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     return out.join('');
   }
 
-  function steps(t) {
+  function stepsRow(t) {
     if (!(t.steps || []).length) return '';
     return '<div class="steps">' + t.steps.map(function (sp) {
-      var st = sp.status;
+      var st = sp.status, key = 'step:' + sp.id;
       var cls = st === 'done' ? 'done' : st === 'running' ? 'run' : /blocked/.test(st) ? 'bad' : '';
-      var pct = st === 'done' ? 100 : st === 'running' ? 55 : /blocked/.test(st) ? 100 : 0;
+      var pct = st === 'done' ? 100 : st === 'running' ? 55 : st === 'awaiting_check' ? 75 : /blocked/.test(st) ? 100 : 0;
       var col = st === 'done' ? 'var(--ok)' : /blocked/.test(st) ? 'var(--bad)' : 'var(--sonnet)';
-      var right = sp.by === 'worker' && (sp.failures || st === 'running') ? sp.failures + '/' + sp.allowed + ' failed' : st;
-      return '<div class="stp ' + cls + '"><div class="h"><span>' + esc(sp.id + ' · ' + sp.kind) + '</span><b>' + esc(right) + '</b></div>' + esc((sp.by === 'lead' ? 'lead' : sp.by) + ' · ' + (sp.role || '') + (sp.tier ? ' · ' + sp.tier : '')) + '<div class="bar"><i style="width:' + pct + '%;background:' + col + '"></i></div></div>';
+      var right = sp.by === 'worker' && sp.failures ? sp.failures + '/' + sp.allowed + ' failed' : st.replace('_', ' ');
+      return '<div class="stp ' + cls + (state.sel === key ? ' sel' : '') + '" data-sel="' + esc(key) + '" tabindex="0" role="button"><div class="h"><span>' + esc(sp.id + ' · ' + sp.kind) + '</span><b>' + esc(right) + '</b></div>' + esc((sp.by === 'lead' ? 'lead' : sp.by) + ' · ' + (sp.role || '') + (sp.tier ? ' · ' + sp.tier : '')) + '<div class="bar"><i style="width:' + pct + '%;background:' + col + '"></i></div></div>';
     }).join('') + '</div>';
   }
 
-  function feed(s, t) {
-    var items = (s.timeline || []).filter(function (e) { return !t || !e.task_id || e.task_id === t.task_id; }).slice(0, 30);
-    if (!items.length) return '<p class="empty">Nothing yet.</p>';
-    return '<ul class="feed">' + items.map(function (e) {
-      return '<li><time>' + esc(hhmm(e.at)) + '</time><i class="d ' + esc(e.tone || '') + '"></i><div>' + esc(e.text) + '<div class="who">' + esc(e.who || '') + '</div></div></li>';
-    }).join('') + '</ul>';
+  // ----- the detail card for whatever is selected
+  function agentDetail(t, a, sp) {
+    var h = [];
+    var model = fam(a.model_actual || a.model);
+    h.push('<h3><span style="color:' + (MODEL[model] || 'inherit') + '">●</span>' + esc(cap(String(a.type).replace('engos:', '')) + (a.step ? ' · ' + a.step : '') + ' · ' + a.id) + '<span class="chip">' + esc(a.status) + '</span>' + (a.result ? '<span class="chip ' + (a.result === 'passed' ? '' : 'warn') + '">' + esc(a.result.replace('_', ' ')) + '</span>' : '') + '</h3>');
+    h.push(kv([
+      ['role', a.role_card || a.role || ''],
+      ['tier', a.tier || ''],
+      ['model asked', a.model || ''],
+      ['model that ran', a.model_actual || (a.status === 'ended' ? 'not reported' : 'not known yet')],
+      ['attempt', a.attempt ? a.attempt + (sp && sp.by === 'worker' ? ' of ' + sp.allowed : '') : ''],
+      ['started', hms(a.launched_at)],
+      ['finished', a.ended_at ? hms(a.ended_at) + ' (' + dur(a.launched_at, a.ended_at) + ')' : 'running for ' + ago(a.launched_at)],
+    ]));
+    h.push('<p class="sub">Files it changed (observed by hooks)</p>' + ul(a.files || []));
+    var r = a.report;
+    if (a.report_problems && a.report_problems.length) h.push('<p class="sub bad">Report problems: treat its claims as unverified</p>' + ul(a.report_problems));
+    if (r) {
+      h.push('<p class="sub">Its report</p>' + kv([['status', r.status || ''], ['next action', r.next_action || ''], ['verdict', r.verdict || ''], ['hypothesis', r.hypothesis || '']]));
+      if (r.findings && r.findings.length) h.push('<p class="sub">Findings</p><ul class="list">' + r.findings.map(function (f) { return '<li><span class="sev ' + esc(String(f.severity).toLowerCase()) + '">' + esc(f.severity || '?') + '</span> <code>' + esc(f.ref) + '</code> ' + esc(f.text) + '</li>'; }).join('') + '</ul>');
+      if (r.limitations && r.limitations.length) h.push('<p class="sub">Limitations</p>' + ul(r.limitations));
+      if (r.assumptions && r.assumptions.length) h.push('<p class="sub">Assumptions</p>' + ul(r.assumptions));
+      if (r.inputs_read && r.inputs_read.length) h.push('<p class="sub">Read</p>' + ul(r.inputs_read));
+    } else if (a.status === 'ended') h.push('<p class="empty">No report stored.</p>');
+    return h.join('');
+  }
+  function stepDetail(t, sp) {
+    var launches = (t.agents || []).filter(function (a) { return a.step === sp.id; });
+    var last = launches[launches.length - 1];
+    var h = ['<h3>' + esc(sp.id + ' · ' + sp.kind) + '<span class="chip">' + esc(sp.status.replace('_', ' ')) + '</span></h3>'];
+    h.push(kv([['done by', sp.by === 'lead' ? 'the lead' : 'engos:' + sp.by], ['role card', sp.role || ''], ['routed tier', sp.tier || ''], ['failed attempts', sp.by === 'worker' ? sp.failures + ' of ' + sp.allowed : '']]));
+    if (launches.length) h.push('<p class="sub">Launches</p><ul class="list">' + launches.map(function (a) { return '<li>' + esc(a.id + ' · ' + (fam(a.model_actual || a.model) || a.tier || '') + ' · ' + a.status + (a.result ? ' · ' + a.result : '') + ' · ' + hhmm(a.launched_at)) + '</li>'; }).join('') + '</ul>');
+    else h.push('<p class="empty">Not started yet.</p>');
+    if (last) h.push('<p class="sub">Latest launch</p>' + agentDetail(t, last, sp));
+    return h.join('');
+  }
+  function leadDetail(t) {
+    var h = ['<h3>' + esc(t.task_id) + '<span class="chip cls ' + esc(t.class) + '">' + esc(t.class) + '</span>' + (t.kind ? '<span class="chip">' + esc(t.kind) + '</span>' : '') + '</h3>'];
+    h.push(kv([['request', t.summary], ['state', t.status.replace('_', ' ')], ['opened', hms(t.opened_at) + ' (' + ago(t.opened_at) + ' ago)'], ['closed', t.closed_at ? hms(t.closed_at) : ''], ['sensitivity', (t.sensitivity || []).join(', ')], ['write scope', (t.scope_write || []).join(', ')], ['residual risk', t.residual_risk || ''], ['evidence at close', (t.close_evidence || []).join('; ')]]));
+    h.push('<p class="sub">Acceptance criteria</p>' + (t.acceptance && t.acceptance.length ? '<ul class="list">' + t.acceptance.map(function (a) { return '<li><b>' + esc(a.id) + '</b> ' + esc(a.statement) + '</li>'; }).join('') + '</ul>' : '<p class="empty">none set</p>'));
+    h.push('<p class="sub">How the class changed</p><ul class="list">' + (t.history || []).map(function (x) { return '<li>' + esc(hhmm(x.at) + '  ' + (x.from || 'new') + ' → ' + x.to + '  (' + x.trigger + ')') + '</li>'; }).join('') + '</ul>');
+    if ((t.facts || []).length) h.push('<p class="sub">Facts and assumptions</p><ul class="list">' + t.facts.map(function (f) { return '<li>' + esc((f.kind === 'verified' ? '✓ ' : '? ') + f.text + (f.source ? '  [' + f.source + ']' : '')) + '</li>'; }).join('') + '</ul>');
+    if ((t.disputes || []).length) h.push('<p class="sub">Disputes</p><ul class="list">' + t.disputes.map(function (d) { return '<li>' + esc(d.id + ' about ' + d.about + ': ' + (d.resolved_by ? 'settled by the ' + d.resolved_by + ' for the ' + d.outcome : 'open, settled by the ' + d.settler)) + '</li>'; }).join('') + '</ul>');
+    return h.join('');
+  }
+  function detail(t, s) {
+    var sel = state.sel || 'lead';
+    if (sel === 'human') return '<h3>Waiting for you</h3>' + waiting(s, t);
+    if (sel.indexOf('step:') === 0) { var sp = (t.steps || []).filter(function (x) { return 'step:' + x.id === sel; })[0]; if (sp) return stepDetail(t, sp); }
+    if (sel.indexOf('agent:') === 0) { var a = (t.agents || []).filter(function (x) { return 'agent:' + x.id === sel; })[0]; if (a) return agentDetail(t, a, null); }
+    return leadDetail(t);
   }
 
+  function filesCard(t) {
+    if (!t.files.list.length) return '<p class="empty">No files changed.</p>';
+    var who = {};
+    (t.agents || []).forEach(function (a) { (a.files || []).forEach(function (f) { (who[f] = who[f] || []).push(String(a.type).replace('engos:', '') + (a.step ? ' ' + a.step : '')); }); });
+    (t.lead_files || []).forEach(function (f) { (who[f] = who[f] || []).push('lead'); });
+    var approved = {}; (t.approved_files || []).forEach(function (f) { approved[f] = true; });
+    return '<div class="files">' + t.files.list.map(function (f) { return '<div><code>' + esc(f) + '</code><span class="muted">' + esc((who[f] || ['changed']).join(', ')) + (approved[f] ? ' · <span class="warn">protected, you allowed it</span>' : '') + '</span></div>'; }).join('') + '</div>' + '<p class="how">+' + t.files.added + ' −' + t.files.deleted + ' lines</p>';
+  }
   function evidence(t) {
     var rows = [];
-    (t.checks || []).forEach(function (c) {
-      rows.push('<div class="row"><span class="mono">engos check ' + esc(c.name) + '</span><span class="' + (c.passed ? 'ok' : 'bad') + '">' + (c.passed ? 'passed' : 'failed') + ' · exit ' + esc(c.exit) + ' · ' + esc(hhmm(c.at)) + (c.before_last_change ? ' <span class="warn">(before the last change)</span>' : '') + '</span></div>');
-    });
-    (t.reviews || []).forEach(function (r) {
-      rows.push('<div class="row"><span>Review ' + esc(r.step || '') + '</span><span class="' + (r.verdict === 'pass' ? 'ok' : 'bad') + '">' + esc(r.verdict || '?') + (r.refs_ok ? '' : ' · refs unverified') + ' · ' + esc(hhmm(r.at)) + '</span></div>');
-    });
+    (t.checks || []).forEach(function (c) { rows.push('<div class="row"><span class="mono">engos check ' + esc(c.name) + '</span><span class="' + (c.passed ? 'ok' : 'bad') + '">' + (c.passed ? 'passed' : 'failed') + ' · exit ' + esc(c.exit) + (c.label && c.label !== 'passed' ? ' · ' + esc(c.label) : '') + ' · ' + esc(hhmm(c.at)) + (c.before_last_change ? ' <span class="warn">(before the last change)</span>' : '') + '</span></div>'); });
+    (t.reviews || []).forEach(function (r) { rows.push('<div class="row"><span>Review ' + esc(r.step || '') + '</span><span class="' + (r.verdict === 'pass' ? 'ok' : 'bad') + '">' + esc(r.verdict || '?') + (r.refs_ok ? '' : ' · refs unverified') + ' · ' + esc(hhmm(r.at)) + '</span></div>'); });
     if (!rows.length) return '<p class="empty">No checks or reviews recorded yet. Only <span class="mono">engos check &lt;name&gt;</span> counts as evidence.</p>';
     return '<div class="rows">' + rows.join('') + '</div>';
   }
-
   function waiting(s, t) {
     var items = [];
     (s.approvals || []).forEach(function (a) {
       if (t && a.task_id && a.task_id !== t.task_id) return;
-      var ctx = a.context && a.context.outgoing_commits && a.context.outgoing_commits.length ? '<div class="how">' + esc(a.context.outgoing_commits.length + ' outgoing commit(s)' + (a.context.branch ? ' on ' + a.context.branch : '')) + '</div>' : '';
-      items.push('<div class="wait-item"><b>' + esc(a.kind === 'file' ? 'Edit a protected file' : 'Allow a ' + String(a.command_class || 'command').replace('_', ' ') + ' command') + '</b><div><code>' + esc(a.action) + '</code></div>' + ctx + '<div class="how">' + esc(a.approval_id + ' · asked ' + hhmm(a.requested_at) + ' · answer with Allow or Deny in the Claude Code session') + '</div></div>');
+      var ctx = a.context && a.context.outgoing_commits && a.context.outgoing_commits.length ? '<div class="how">' + esc(a.context.outgoing_commits.length + ' outgoing commit(s)' + (a.context.branch ? ' on ' + a.context.branch : '')) + '</div><ul class="list">' + a.context.outgoing_commits.map(function (c) { return '<li class="mono">' + esc(c) + '</li>'; }).join('') + '</ul>' : '';
+      items.push('<div class="wait-item"><b>' + esc(a.kind === 'file' ? 'Edit a protected file' : a.command_class === 'mcp' ? 'Allow an external tool call' : 'Allow a ' + String(a.command_class || 'command').replace('_', ' ') + ' command') + '</b><div><code>' + esc(a.action) + '</code></div>' + ctx + '<div class="how">' + esc(a.approval_id + ' · asked ' + hhmm(a.requested_at) + ' · answer with Allow or Deny in the Claude Code session') + '</div></div>');
     });
     if (t && t.needs_human) items.push('<div class="wait-item"><b>' + esc(t.task_id + ' needs your decision') + '</b><div>' + esc(t.needs_human.reason) + '</div><div class="how">' + esc('type in the session: /engos:decide ' + t.task_id + ' <' + t.needs_human.options.join('|') + '>') + '</div></div>');
     if (t && t.deep_pending) items.push('<div class="wait-item"><b>' + esc('Use Fable for ' + t.deep_pending.step + '?') + '</b><div>The lead explains why in the session.</div><div class="how">' + esc('type: /engos:decide ' + t.task_id + ' fable   or   /engos:decide ' + t.task_id + ' no_fable') + '</div></div>');
@@ -284,57 +352,88 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     return items.join('') + '<p class="how">This page is read-only. Approvals and decisions happen only in the Claude Code session.</p>';
   }
 
+  function matchFilter(e) {
+    var f = state.filter, t = e.type;
+    if (f === 'all') return true;
+    if (f === 'agents') return /^(step|agent|model|validation|uncertainty)\./.test(t);
+    if (f === 'checks') return /^(evidence|validation|task\.close)/.test(t);
+    if (f === 'gate') return /^(gate|approval|violation|class)\./.test(t);
+    if (f === 'you') return e.who === 'you' || /^(approval|decision|model\.answered|responsibility)/.test(t);
+    return true;
+  }
+  function feed(s, t) {
+    var items = (s.timeline || []).filter(function (e) { return (!t || !e.task_id || e.task_id === t.task_id) && matchFilter(e); }).slice(0, 40);
+    var chips = '<div class="chips" role="group" aria-label="Filter events">' + FILTERS.map(function (f) { return '<button class="btn-s" type="button" data-filter="' + f[0] + '" aria-pressed="' + (state.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div>';
+    if (!items.length) return chips + '<p class="empty">Nothing here yet.</p>';
+    return chips + '<ul class="feed">' + items.map(function (e) {
+      var id = e.at + e.type;
+      var data = e.data ? Object.keys(e.data).filter(function (k) { return k !== 'actor'; }).map(function (k) { return k + ': ' + (typeof e.data[k] === 'object' ? JSON.stringify(e.data[k]) : e.data[k]); }).join('\n') : '';
+      return '<li tabindex="0" data-ev="' + esc(id) + '" class="' + (state.open[id] ? 'open' : '') + '" aria-expanded="' + !!state.open[id] + '"><time>' + esc(hhmm(e.at)) + '</time><i class="d ' + esc(e.tone || '') + '"></i><div>' + esc(e.text) + '<div class="who">' + esc(e.who || '') + '</div></div><div class="more">' + esc(hms(e.at) + '  ' + e.type + (data ? '\n' + data : '')) + '</div></li>';
+    }).join('') + '</ul>';
+  }
+
   function render() {
-    var s = state.status;
-    var app = document.getElementById('app');
-    var tasks = s.tasks || [];
-    if (!state.selected || !tasks.some(function (x) { return x.task_id === state.selected; })) state.selected = tasks.length ? tasks[tasks.length - 1].task_id : null;
-    var t = tasks.filter(function (x) { return x.task_id === state.selected; })[0];
+    var s = state.status, app = document.getElementById('app');
+    var tasks = s.tasks || [], all = allTasks(s);
+    if (!state.selected || !all.some(function (x) { return x.task_id === state.selected; })) { state.selected = tasks.length ? tasks[tasks.length - 1].task_id : null; state.sel = null; }
+    var t = all.filter(function (x) { return x.task_id === state.selected; })[0];
+    if (t && !state.sel) { var run = nodesFor(t).filter(function (n) { return nodeState(n) === 'run'; })[0]; state.sel = run ? run.key : 'lead'; }
     var html = [];
     html.push('<div class="card head"><div class="left"><span class="brand"><i></i>Engineering OS</span><span class="task">' + esc(s.project) + '</span>');
     if (t) {
       html.push('<span class="task">' + esc(t.task_id) + '</span><span class="title">' + esc(t.summary) + '</span><span class="chip cls ' + esc(t.class) + '">' + esc(t.class) + '</span>');
       if (t.status !== 'open') html.push('<span class="chip warn">' + esc(t.status.replace('_', ' ')) + '</span>');
-      html.push('<span class="chip mono">' + esc(ago(t.opened_at)) + '</span>');
-    } else {
-      html.push('<span class="title">No open task</span>');
-    }
+      html.push('<span class="chip mono">' + esc(t.closed_at ? dur(t.opened_at, t.closed_at) : ago(t.opened_at)) + '</span>');
+    } else html.push('<span class="title">No open task</span>');
     html.push('</div><span class="live" id="live"><b></b><span></span></span></div>');
-    if (tasks.length > 1) html.push('<div class="tabs" role="group" aria-label="Open tasks">' + tasks.map(function (x) { return '<button class="tab" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' · ' + x.class) + '</button>'; }).join('') + '</div>');
+    html.push('<div class="toolbar"><div class="tabs" role="group" aria-label="Tasks">' + tasks.map(function (x) { return '<button class="tab" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' · ' + x.class) + '</button>'; }).join('') + (s.recent || []).map(function (x) { return '<button class="tab closed" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' ✓') + '</button>'; }).join('') + '</div><button class="btn-s" type="button" id="pause" aria-pressed="' + state.paused + '">' + (state.paused ? 'Resume updates' : 'Pause updates') + '</button></div>');
 
     if (!t) {
-      html.push('<div class="card"><p class="eyebrow">Idle</p>' + (s.last_closed ? '<p>Last task: <span class="mono">' + esc(s.last_closed.task_id) + '</span> closed ' + esc(ago(s.last_closed.closed_at)) + ' ago with ' + esc((s.last_closed.evidence || []).join('; ') || 'no evidence listed') + '.</p>' : '<p class="empty">Nothing has run yet.</p>') + '</div>');
+      html.push('<div class="card"><p class="eyebrow">Idle</p><p class="empty">Nothing has run yet.</p></div>');
       html.push('<div class="bottom"><div class="card"><p class="eyebrow">What happened</p>' + feed(s, null) + '</div><div class="card"><p class="eyebrow">Waiting for you</p>' + waiting(s, null) + '</div></div>');
     } else {
       var nodes = nodesFor(t);
-      var run = nodes.filter(function (n) { return nodeState(n) === 'run'; }).length;
-      var done = nodes.filter(function (n) { return nodeState(n) === 'ok'; }).length;
-      var cur = (t.steps || []).filter(function (x) { return x.by === 'worker' && (x.status === 'running' || x.failures); }).pop();
-      var passed = (t.checks || []).filter(function (c) { return c.passed; }).length;
-      var failed = (t.checks || []).length - passed;
-      var nWait = (s.approvals || []).filter(function (a) { return !a.task_id || a.task_id === t.task_id; }).length + (t.needs_human ? 1 : 0) + (t.deep_pending ? 1 : 0);
+      var run = nodes.filter(function (n) { return nodeState(n) === 'run'; }).length, done = nodes.filter(function (n) { return nodeState(n) === 'ok'; }).length;
+      var cur = (t.steps || []).filter(function (x) { return x.by === 'worker' && (x.status === 'running' || x.status === 'awaiting_check' || x.failures); }).pop();
+      var passed = (t.checks || []).filter(function (c) { return c.passed; }).length, failed = (t.checks || []).length - passed;
+      var nWait = t.closed_at ? 0 : waitingCount(s, t);
       html.push('<div class="stats">');
       html.push('<div class="card stat"><p class="eyebrow">Agents</p><div class="v">' + (t.agents || []).length + ' <small>+ lead</small></div><div class="s">' + run + ' running · ' + done + ' done · ' + nodes.filter(function (n) { return nodeState(n) === 'wait'; }).length + ' queued</div></div>');
-      html.push('<div class="card stat"><p class="eyebrow">' + esc(cur ? 'Step ' + cur.id + ' attempts' : 'Attempts') + '</p><div class="v">' + (cur ? cur.failures + ' <small>/ ' + cur.allowed + ' failed</small>' : '0') + '</div><div class="s">' + esc(cur ? (cur.status === 'running' ? 'running on ' + (cur.tier || '') : cur.status) : 'no worker step yet') + '</div></div>');
+      html.push('<div class="card stat"><p class="eyebrow">' + esc(cur ? 'Step ' + cur.id + ' attempts' : 'Attempts') + '</p><div class="v">' + (cur ? cur.failures + ' <small>/ ' + cur.allowed + ' failed</small>' : '0') + '</div><div class="s">' + esc(cur ? cur.status.replace('_', ' ') + ' · ' + (cur.tier || '') : 'no worker step yet') + '</div></div>');
       html.push('<div class="card stat"><p class="eyebrow">Checks</p><div class="v">' + passed + ' <small>passed</small></div><div class="s">' + failed + ' failed · recorded by engos check</div></div>');
-      html.push('<div class="card stat' + (nWait ? ' alert' : '') + '"><p class="eyebrow">Waiting for you</p><div class="v">' + nWait + '</div><div class="s">' + esc(nWait ? 'see below' : 'nothing') + '</div></div>');
+      html.push('<div class="card stat' + (nWait ? ' alert' : '') + '"><p class="eyebrow">Waiting for you</p><div class="v">' + nWait + '</div><div class="s">' + esc(nWait ? 'select "You" in the graph' : 'nothing') + '</div></div>');
       html.push('</div>');
-      html.push('<div class="main"><div class="card"><p class="eyebrow">Who is working</p><div class="graph">' + graph(t, s) + '</div>');
+      html.push('<div class="main"><div class="card"><p class="eyebrow">Who is working · select a box for details</p><div class="graph">' + graph(t, s) + '</div>');
       html.push('<div class="legend"><span><b style="background:var(--haiku)"></b>Haiku</span><span><b style="background:var(--sonnet)"></b>Sonnet</span><span><b style="background:var(--opus)"></b>Opus</span><span><b style="background:var(--fable)"></b>Fable</span><span>· pulsing = running · dashed = waiting</span></div>');
-      html.push(steps(t) + '</div>');
-      html.push('<div class="card"><p class="eyebrow">What happened</p>' + feed(s, t) + '</div></div>');
-      html.push('<div class="bottom"><div class="card"><p class="eyebrow">Evidence</p>' + evidence(t) + (t.files.list.length ? '<p class="how">Changed: ' + esc(t.files.list.join(', ')) + '</p>' : '') + '</div><div class="card"><p class="eyebrow">Waiting for you</p>' + waiting(s, t) + '</div></div>');
+      html.push(stepsRow(t) + '</div>');
+      html.push('<div class="card detail" aria-live="polite"><p class="eyebrow">Details</p>' + detail(t, s) + '</div></div>');
+      html.push('<div class="three"><div class="card"><p class="eyebrow">What happened · select an event</p>' + feed(s, t) + '</div><div class="card"><p class="eyebrow">Files</p>' + filesCard(t) + '<p class="eyebrow" style="margin-top:16px">Evidence</p>' + evidence(t) + '</div><div class="card"><p class="eyebrow">Waiting for you</p>' + waiting(s, t) + '</div></div>');
     }
     html.push('<footer>Read-only view of <span class="mono">.engos/</span>. It refreshes by itself and never approves anything.</footer>');
+    var y = window.scrollY;
     app.innerHTML = html.join('');
-    Array.prototype.forEach.call(app.querySelectorAll('.tab'), function (b) {
-      b.addEventListener('click', function () { state.selected = b.getAttribute('data-task'); render(); });
-    });
+    window.scrollTo(0, y);
     tick();
   }
 
+  // One delegated handler: selection, filters, tabs, events, pause. None of these change anything on disk.
+  function activate(el) {
+    if (!el) return;
+    if (el.id === 'pause') { state.paused = !state.paused; if (!state.paused) poll(); render(); return; }
+    if (el.hasAttribute('data-task')) { state.selected = el.getAttribute('data-task'); state.sel = null; render(); return; }
+    if (el.hasAttribute('data-sel')) { state.sel = el.getAttribute('data-sel'); render(); return; }
+    if (el.hasAttribute('data-filter')) { state.filter = el.getAttribute('data-filter'); render(); return; }
+    if (el.hasAttribute('data-ev')) { var id = el.getAttribute('data-ev'); state.open[id] = !state.open[id]; render(); }
+  }
+  document.addEventListener('click', function (e) { activate(e.target.closest('[data-sel],[data-filter],[data-task],[data-ev],#pause')); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var el = e.target.closest && e.target.closest('[data-sel],[data-ev]');
+    if (el) { e.preventDefault(); activate(el); }
+  });
+
   poll();
-  setInterval(poll, 2000);
+  setInterval(function () { if (!state.paused) poll(); }, 2000);
   setInterval(tick, 1000);
 })();
 </script>

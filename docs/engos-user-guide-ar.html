@@ -244,7 +244,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
       <table>
         <thead><tr><th>النوع</th><th>متى</th><th>كيف ترد</th><th>المدة</th></tr></thead>
         <tbody>
-          <tr><td>إجراء واحد</td><td>push، أو نشر، أو اتصال شبكي، أو حذف، أو أمر غير معروف في مهمة high_risk</td><td>اضغط Yes أو No في النافذة</td><td>هذه المرة فقط؛ المرة التالية تسألك من جديد</td></tr>
+          <tr><td>إجراء واحد</td><td>push، أو نشر، أو اتصال شبكي، أو حذف، أو أمر غير معروف في مهمة high_risk، أو أداة MCP خارجية (Slack وGitHub…). أدوات Claude الداخلية لا تسألك أبدًا.</td><td>اضغط Yes أو No في النافذة</td><td>هذه المرة فقط؛ المرة التالية تسألك من جديد</td></tr>
           <tr><td>ملف محمي</td><td>أول تعديل لكل ملف محمي داخل المهمة</td><td>اضغط Yes أو No في النافذة</td><td>هذا الملف حتى إغلاق المهمة، و24 ساعة كحد أقصى</td></tr>
           <tr><td>قرار</td><td>أمر غيّر ملفات محمية دون أن يسأل، فتوقفت المهمة</td><td>اكتب <code>/engos:decide TASK-… accept</code> أو <code>stop</code></td><td>لهذا القرار فقط</td></tr>
         </tbody>
@@ -301,7 +301,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
     <div class="term"><span class="d">◆ engos</span>  TASK-012 standard │ <span class="b">lead opus</span> │ <span class="g">scout ✓</span> │ <span class="b">worker sonnet S2 ⟳ 2/3</span> │ validator … │ <span class="y">⚠ 1 approval</span></div>
     <div class="grid3" style="margin-top:16px">
       <div class="panel"><h3 class="hot">سطر الحالة</h3><p>دائمًا تحت الـ prompt: المهمة، ودرجتها، وكل agent مع نموذجه وخطوته، والمحاولات، والفحوص الفاشلة، والموافقات المنتظرة. تفعّله من <code>/engos:init</code>.</p></div>
-      <div class="panel"><h3 class="hot"><code>/engos:view</code></h3><p>رسم حي للـ agents مع خط زمني، والأدلة المجمّعة، وما ينتظرك. يتحدّث كل ثانيتين. في تطبيق Desktop يفتح بجانب المحادثة عبر خادم محلي صغير (على جهازك فقط). للعرض فقط ولا يستطيع الموافقة على أي شيء.</p></div>
+      <div class="panel"><h3 class="hot"><code>/engos:view</code></h3><p>رسم حي للـ agents مع خط زمني، والأدلة المجمّعة، وما ينتظرك. اضغط على أي agent أو خطوة لترى نموذجه، ووقته، والملفات التي غيّرها، وتقريره. يتحدّث كل ثانيتين. في تطبيق Desktop يفتح بجانب المحادثة عبر خادم محلي صغير (على جهازك فقط). للعرض فقط ولا يستطيع الموافقة على أي شيء.</p></div>
       <div class="panel"><h3 class="hot"><code>/engos:status</code></h3><p>نفس الصورة كنص في المحادثة. مفيد من الهاتف عبر Remote Control.</p></div>
     </div>
   </section>
@@ -398,7 +398,7 @@ lead recommends  retry: the failing test needs …</pre>
       <div class="panel">
         <h3 class="hot">يبقى شغالًا دائمًا</h3>
         <ul class="dash">
-          <li>موافقتك على push والنشر والشبكة والحذف</li>
+          <li>موافقتك على push والنشر والشبكة والحذف وأدوات MCP الخارجية</li>
           <li>الملفات الممنوعة المدمجة: الموافقات، والـ ledger، وإعدادات Claude، والـ hooks</li>
           <li>لا نشر على production</li>
         </ul>
@@ -463,5 +463,5 @@ lead recommends  retry: the failing test needs …</pre>
     </ul>
   </div>
 
-  <footer>Engineering OS · دليل الاستخدام للإصدار 0.1 كما بُني (المراحل 1–6) · القرارات D1–D48 في <span dir="ltr">docs/decisions.md</span></footer>
+  <footer>Engineering OS · دليل الاستخدام للإصدار 0.1 كما بُني (المراحل 1–6) · القرارات D1–D49 في <span dir="ltr">docs/decisions.md</span></footer>
 </div>

@@ -317,3 +317,10 @@ Done so far:
 11 of 12 gate figures are within the D44 target (30 ms). The macOS Node 24 Bash figure is one 30-run sample on a shared runner whose Node start-up itself varied by 30 ms; re-check before publishing. The observer is slowest on Windows because each git process start costs about 50 ms there; it runs after the tool, not before it.
 
 Still open: owner's author name, the Desktop status line and E3 (need the owner at the machine), Claude Code on the web, publishing.
+
+### Phase 7 additions: MCP gate and interactive live view
+
+- **MCP gate (H6, D49):** `tests/unit/phase7.test.js` (2 tests). Claude's own app tools pass without a prompt; other MCP tools ask on every call, also when paused; the terminal runner always asks even if a project allows `mcp__terminal__*`; a granted call is recorded. Real Desktop run pending.
+- **Interactive live view:** select any node or step for details (model asked and actual, timing, files changed, the stored report with findings and limitations), event filters and expandable events, files with who changed them, open and last 8 closed tasks, pause updates. Checked in the browser pane at desktop and phone width (no horizontal scroll). Still read-only: the test checks there is no approve, allow, deny or decide control.
+
+All unit tests: 74 of 74.

@@ -289,6 +289,21 @@ function exceedsTrivial(observed, b) {
 }
 
 // What a class needs before writes may continue.
+// D49: is this MCP tool allowed without an approval? Host tools by default, plus the project's mcp_allowlist.
+function mcpAllowed(name, policies, config) {
+  const m = (policies && policies.mcp) || {};
+  const hit = (list) => (list || []).some((g) => globToRegex(String(g)).test(name) || g === name);
+  if (hit(m.always_ask)) return false;
+  return hit(m.host_tools_allowed) || hit(config && config.mcp_allowlist);
+}
+
+// Short, stable text for an MCP call: the tool and its input, so the approval record names the real action.
+function mcpAction(name, input) {
+  let args = '';
+  try { args = JSON.stringify(input || {}); } catch (_) { args = '{}'; }
+  return name + ' ' + (args.length > 400 ? args.slice(0, 399) + '…' : args);
+}
+
 function missingRequirements(profile) {
   const cls = (profile.effective && profile.effective.class) || 'question';
   const missing = [];
@@ -300,6 +315,8 @@ function missingRequirements(profile) {
 }
 
 module.exports = {
+  mcpAllowed,
+  mcpAction,
   CLASSES,
   classRank,
   maxClass,

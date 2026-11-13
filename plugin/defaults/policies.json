@@ -66,6 +66,21 @@
       "require": "deny"
     }
   ],
+  "mcp": {
+    "host_tools_allowed": [
+      "mcp__ccd_*",
+      "mcp__Claude_Browser__*",
+      "mcp__remote-devices__Claude_Browser__*",
+      "mcp__visualize__*",
+      "mcp__terminal__read_terminal",
+      "mcp__terminal__list_terminal_tabs"
+    ],
+    "always_ask": [
+      "mcp__terminal__run_in_terminal",
+      "mcp__terminal__open_terminal_tab"
+    ],
+    "project_list": ".engos/config.yaml mcp_allowlist"
+  },
   "approvals": {
     "only_from": "human",
     "request_written_by": "gate",

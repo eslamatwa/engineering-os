@@ -55,5 +55,5 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 | Another session or a scheduled task sends an approval command | Hooks get no origin field | Same-session rule (D34) |
 | The user turns the plugin off | Their choice | `/engos:pause` keeps hard gates on; uninstall is outside our control |
 | A subagent's report misstates what it did | Reports are model text | Files changed are compared with what hooks observed; refs and quoted log lines are checked to exist; a bad report is sent back once, then flagged to the lead as unverified |
-| MCP tools act outside the repo | The MCP gate (H6) isn't built yet | Listed for the owner; until then Claude Code's own permissions apply |
+| MCP tools act outside the repo | They can, by design | Every call asks unless it is one of Claude's own app tools or in the project's `mcp_allowlist` (D49); calls are observed for repo changes like commands |
 | The local live view server | It listens on a port | 127.0.0.1 only, GET only, two files, no state changes, stops after 8 hours |

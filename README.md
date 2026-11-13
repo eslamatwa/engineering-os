@@ -25,7 +25,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 - **Small work stays cheap.** Reading is free. A small edit opens a lightweight task automatically; the main session does it itself.
 - **The class only goes up.** It is raised by what the code observes (protected paths, diff size, risky commands) and by sensitivity the model reads in your request, in any language.
 - **Routing is written down.** Haiku for search and logs, Sonnet for scoped work, Opus for features and security, Fable for architecture, and only after you say yes.
-- **You approve what leaves the repo.** Push, publish, network and destructive commands, and the first edit of each protected file, ask you through Claude Code's own Allow/Deny prompt. Every approval is recorded.
+- **You approve what leaves the repo.** Push, publish, network and destructive commands, external MCP tools, and the first edit of each protected file ask you through Claude Code's own Allow/Deny prompt. Claude's own app tools don't. Every approval is recorded.
 - **Evidence, not narration.** Checks run through `engos check`, which records the real exit code. A task closes only when the required evidence exists.
 - **You can always see the agents.** Status line, a live graph (`/engos:view`) and `/engos:status`.
 
@@ -33,7 +33,7 @@ Engineering OS prevents common mistakes and detects indirect changes inside the 
 
 | Path | What |
 | --- | --- |
-| `docs/decisions.md` | Every agreed decision (D1–D48). Source of truth. |
+| `docs/decisions.md` | Every agreed decision (D1–D49). Source of truth. |
 | `docs/architecture.md` | Architecture in text; visual version in `docs/engos-architecture.html` |
 | `config/rules.yaml` | Classes, protected paths, budgets, Bash classes, routing, escalation |
 | `config/policies.yaml` | Threat model, modes, hard gates, approvals, pause, platform |

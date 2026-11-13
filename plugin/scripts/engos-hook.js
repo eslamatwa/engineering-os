@@ -125,10 +125,10 @@ function projectRules(core, root, session) {
   const file = core.engosPath(root, 'config.yaml');
   let mtime = 0;
   try { mtime = fs.statSync(file).mtimeMs; } catch (_) { /* missing */ }
-  if (session.config_cache && session.config_cache.mtime === mtime && session.config_cache.models) return session.config_cache;
+  if (session.config_cache && session.config_cache.mtime === mtime && session.config_cache.models && session.config_cache.mcp_allowlist) return session.config_cache;
   const cfg = core.loadProjectConfig(root);
   const config = cfg.ok ? cfg.config : {};
-  session.config_cache = { mtime, protected: core.protectedFor(config), known: config.known_commands || [], models: { available: (config.models && config.models.available) || [] } };
+  session.config_cache = { mtime, protected: core.protectedFor(config), known: config.known_commands || [], mcp_allowlist: config.mcp_allowlist || [], models: { available: (config.models && config.models.available) || [] } };
   core.saveSession(root, session.session_id, session);
   return session.config_cache;
 }
@@ -324,13 +324,17 @@ function postToolUse(core, input) {
   const R = require('./engos-rules.js');
   const A = require('./engos-approvals.js');
   const cfg = projectRules(core, root, session);
-  const isBash = input.tool_name === 'Bash';
+  const isMcp = String(input.tool_name || '').startsWith('mcp__');
+  if (isMcp && R.mcpAllowed(input.tool_name, core.defaults().policies, { mcp_allowlist: cfg.mcp_allowlist })) return; // host tools: nothing to record
+  const isBash = input.tool_name === 'Bash' || isMcp; // an external tool may change files like a command can
   const task = session.paused ? null : core.activeTask(root, sessionId);
   const ti = input.tool_input || {};
 
   // 1. Approvals: the tool ran, so the person allowed it (D46).
   let grantedThisCall = null;
-  if (isBash) {
+  if (isMcp) {
+    grantedThisCall = A.grantIfPending(root, { kind: 'action', tool: 'MCP', action: R.mcpAction(input.tool_name, ti), session_id: sessionId, task_id: task ? task.task_id : null });
+  } else if (isBash) {
     grantedThisCall = A.grantIfPending(root, { kind: 'action', tool: 'Bash', action: ti.command || '', session_id: sessionId, task_id: task ? task.task_id : null });
   } else {
     const rel = relPath(root, ti.file_path || ti.notebook_path);
@@ -360,7 +364,7 @@ function postToolUse(core, input) {
 
   // 2. Observe.
   let pkg = false;
-  if (isBash) {
+  if (isBash && !isMcp) {
     const res = R.classifyCommand(ti.command || '', core.defaults().rules.bash_classes, cfg.protected.never);
     if (res.parts.every((p) => p.cls === 'read' || p.cls === 'check' || p.cls === 'engos')) return;
     pkg = res.parts.some((p) => p.cls === 'pkg_install');
@@ -571,6 +575,23 @@ function subagentStop(core, input) {
 }
 
 // ---------------------------------------------------------------------------
+// H6 · PreToolUse on MCP tools (D49): external actions ask through Claude Code's prompt, every call (G-delivery).
+// Claude's own app tools and the project's mcp_allowlist pass. Paused sessions still ask: it's a hard gate.
+// ---------------------------------------------------------------------------
+function gateMcp(core, root, session, input, cfg) {
+  const R = require('./engos-rules.js');
+  const name = String(input.tool_name);
+  if (R.mcpAllowed(name, core.defaults().policies, { mcp_allowlist: cfg.mcp_allowlist })) return;
+  const A = require('./engos-approvals.js');
+  const sessionId = session.session_id;
+  const task = session.paused ? null : core.activeTask(root, sessionId);
+  const action = R.mcpAction(name, input.tool_input);
+  const rec = A.request(root, { kind: 'action', tool: 'MCP', action, cls: 'mcp', session_id: sessionId, task_id: task ? task.task_id : null, context: { tool: name } });
+  core.ledger(root, { type: 'approval.requested', actor: { kind: 'hook' }, approval_id: rec.approval_id, kind: 'action', command_class: 'mcp', tool: name, task_id: task ? task.task_id : null, session_id: sessionId });
+  ask(name + ' is an external tool, so the user is being asked to allow this call (' + rec.approval_id + '). To stop being asked for a tool that only reads, the user can add it to mcp_allowlist in .engos/config.yaml. If they say no, don\'t retry it unchanged.');
+}
+
+// ---------------------------------------------------------------------------
 // H2 · UserPromptExpansion: typed human commands (D46, D34, D35).
 // ---------------------------------------------------------------------------
 const TYPED = [
@@ -716,6 +737,7 @@ function preToolUse(core, input) {
   if (WRITE_TOOLS.has(input.tool_name)) return gateWrite(core, root, session, input, cfg);
   if (input.tool_name === 'Bash') return gateBash(core, root, session, input, cfg);
   if (input.tool_name === 'Agent' || input.tool_name === 'Task') return gateAgent(core, root, session, input, cfg);
+  if (String(input.tool_name || '').startsWith('mcp__')) return gateMcp(core, root, session, input, cfg);
 }
 
 function main() {

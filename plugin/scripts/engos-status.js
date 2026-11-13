@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TIMELINE_MAX = 40;
+const TIMELINE_MAX = 80;
 const LEDGER_TAIL_BYTES = 96 * 1024;
 
 function readJson(file, fallback) {
@@ -77,6 +77,16 @@ function describe(e) {
   }
 }
 
+function eventData(e) {
+  const out = {};
+  for (const k of Object.keys(e)) {
+    if (k === 'at' || k === 'type' || k === 'session_id') continue;
+    const v = e[k];
+    out[k] = typeof v === 'string' ? short(v, 200) : Array.isArray(v) ? v.slice(0, 10) : v;
+  }
+  return out;
+}
+
 function pendingApprovals(root) {
   const dir = path.join(root, '.engos', 'approvals');
   const out = [];
@@ -92,7 +102,26 @@ function pendingApprovals(root) {
   return out.sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at));
 }
 
-function taskView(t, D) {
+// A subagent's stored report, cut down for display. Reports are model text written by hooks; shown, never trusted.
+function reportSummary(root, t, a) {
+  if (!root) return null;
+  const r = readJson(path.join(root, '.engos', 'tasks', t.task_id, (a.step || 'free') + '.report-' + a.id + '.json'), null);
+  if (!r) return null;
+  const list = (v, n) => (Array.isArray(v) ? v : []).slice(0, n).map((x) => short(typeof x === 'string' ? x : JSON.stringify(x), 200));
+  return {
+    status: r.status || null,
+    next_action: short(r.next_action, 240),
+    inputs_read: list(r.inputs_read, 12),
+    outputs_changed: list(r.outputs_changed, 20),
+    limitations: list(r.limitations, 6),
+    assumptions: list(r.assumptions, 6),
+    hypothesis: r.hypothesis ? short(r.hypothesis, 300) : null,
+    verdict: r.verdict || null,
+    findings: (Array.isArray(r.findings) ? r.findings : []).slice(0, 12).map((x) => ({ ref: short(x && x.ref, 80), severity: short(x && x.severity, 12), text: short(x && x.text, 240) })),
+  };
+}
+
+function taskView(t, D, root) {
   const O = require('./engos-orchestrate.js');
   const E = require('./engos-evidence.js');
   const steps = ((t.planned && t.planned.steps) || []).map((s) => {
@@ -102,7 +131,7 @@ function taskView(t, D) {
     if (status === 'running' && !(t.agents || []).some((a) => a.step === s.id && O.isRunning(a))) status = s.by === 'worker' ? 'awaiting_check' : 'done';
     return { id: s.id, kind: s.kind, by: s.by, role: s.role, tier: s.tier, status, failures: s.by === 'worker' ? O.failuresFor(t, s.id) : 0, allowed: st.allowed_attempts || ((D.rules.escalation || {}).attempts_per_step || 3) };
   });
-  const agents = (t.agents || []).map((a) => ({ id: a.id, type: a.type, role: a.role, role_card: a.role_card, step: a.step, tier: a.tier, model: a.model_requested, model_actual: a.model_actual, status: a.status === 'launched' || a.status === 'running' ? (O.isRunning(a) ? a.status : 'stale') : a.status, attempt: a.attempt, result: a.result || null, report_status: a.report_status || null, launched_at: a.launched_at, ended_at: a.ended_at || null, files: (a.files || []).slice(0, 20) }));
+  const agents = (t.agents || []).map((a) => ({ id: a.id, type: a.type, role: a.role, role_card: a.role_card, step: a.step, tier: a.tier, model: a.model_requested, model_actual: a.model_actual, status: a.status === 'launched' || a.status === 'running' ? (O.isRunning(a) ? a.status : 'stale') : a.status, attempt: a.attempt, result: a.result || null, report_status: a.report_status || null, launched_at: a.launched_at, ended_at: a.ended_at || null, files: (a.files || []).slice(0, 20), report_problems: (a.report_problems || []).slice(0, 4).map((p) => short(p, 200)), report: reportSummary(root, t, a) }));
   const runs = E.latestRuns(t);
   const checks = Object.keys(runs).map((n) => ({ name: n, passed: runs[n].passed, exit: runs[n].exit, at: runs[n].at, label: runs[n].label || null, before_last_change: !!(t.last_change_at && Date.parse(runs[n].at) < Date.parse(t.last_change_at)) }));
   const o = t.observed || {};
@@ -124,6 +153,16 @@ function taskView(t, D) {
     reviews: (t.reviews || []).map((r) => ({ step: r.step, verdict: r.verdict, refs_ok: r.refs_ok, at: r.at })),
     disputes_open: (t.disputes || []).filter((d) => !d.resolved_by).length,
     cross_system: !!t.cross_system,
+    sensitivity: (t.declared || {}).sensitivity || [],
+    scope_write: ((t.planned || {}).scope || {}).write || [],
+    acceptance: ((t.planned || {}).acceptance || []).map((a) => ({ id: a.id, statement: short(a.statement, 200) })),
+    lead_files: (t.lead_files || []).slice(0, 30),
+    approved_files: Object.keys(t.approved_files || {}).slice(0, 30),
+    history: (t.history || []).slice(-12).map((h) => ({ at: h.at, from: h.from, to: h.to, trigger: short(h.trigger, 80) })),
+    disputes: (t.disputes || []).slice(-6).map((d) => ({ id: d.id, about: d.about, settler: d.settler, resolved_by: d.resolved_by || null, outcome: d.outcome || null })),
+    facts: (t.facts || []).slice(-10).map((x) => ({ kind: x.kind, text: short(x.text, 200), source: x.source || null })),
+    residual_risk: t.residual_risk ? short(t.residual_risk, 300) : null,
+    close_evidence: t.close_evidence || [],
   };
 }
 
@@ -137,7 +176,7 @@ function buildStatus(root) {
   const timeline = [];
   for (let i = tail.length - 1; i >= 0 && timeline.length < TIMELINE_MAX; i--) {
     const d = describe(tail[i]);
-    if (d) timeline.push(Object.assign({ at: tail[i].at, type: tail[i].type, task_id: tail[i].task_id || null }, d));
+    if (d) timeline.push(Object.assign({ at: tail[i].at, type: tail[i].type, task_id: tail[i].task_id || null }, d, { data: eventData(tail[i]) }));
   }
   const denied = tail.filter((e) => e.type === 'gate.denied');
   const sessions = {};
@@ -153,7 +192,8 @@ function buildStatus(root) {
     generated_at: new Date().toISOString(),
     project: path.basename(root),
     sessions,
-    tasks: open.map((t) => taskView(t, D)),
+    tasks: open.map((t) => taskView(t, D, root)),
+    recent: closed.slice(0, 8).map((t) => taskView(t, D, root)),
     last_closed: closed[0] ? { task_id: closed[0].task_id, summary: short((closed[0].request || {}).summary, 100), closed_at: closed[0].closed_at, evidence: closed[0].close_evidence || [] } : null,
     approvals: pendingApprovals(root),
     gate: { denied_recent: denied.length, last_denied: denied.length ? { at: denied[denied.length - 1].at, rule_id: denied[denied.length - 1].rule_id, tool: denied[denied.length - 1].tool } : null },
