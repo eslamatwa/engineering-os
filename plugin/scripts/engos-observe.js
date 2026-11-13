@@ -143,6 +143,9 @@ function observe(root, base, protectedPaths, opts) {
   const touched = [];
   let added = 0;
   let deleted = 0;
+  let docLines = 0; // D51: lines in docs files, not counted against the trivial budget
+  const notCounted = (((o.budget || {}).lines_not_counted) || ((require('./engos-core.js').defaults().rules.budgets || {}).trivial_edit || {}).lines_not_counted || []);
+  const isDoc = (p) => rules.matchAny(p, notCounted);
   let created = 0;
   let removed = 0;
   const dirty = base.dirty_at_open || {};
@@ -152,14 +155,19 @@ function observe(root, base, protectedPaths, opts) {
     touched.push(e.path);
     if (e.kind === 'untracked' || e.kind === 'added') {
       created++;
-      added += lines[e.path] ? lines[e.path].added : countLines(path.join(root, e.path));
+      const n = lines[e.path] ? lines[e.path].added : countLines(path.join(root, e.path));
+      added += n;
+      if (isDoc(e.path)) docLines += n;
     } else if (e.kind === 'deleted') {
       removed++;
-      deleted += lines[e.path] ? lines[e.path].deleted : 0;
+      const n = lines[e.path] ? lines[e.path].deleted : 0;
+      deleted += n;
+      if (isDoc(e.path)) docLines += n;
     } else {
       const l = lines[e.path] || { added: 0, deleted: 0 };
       added += l.added;
       deleted += l.deleted;
+      if (isDoc(e.path)) docLines += l.added + l.deleted;
     }
   }
   // Committed since the task opened: git status is clean for those files, numstat against base still sees them.
@@ -169,6 +177,7 @@ function observe(root, base, protectedPaths, opts) {
     touched.push(p);
     added += lines[p].added;
     deleted += lines[p].deleted;
+    if (isDoc(p)) docLines += lines[p].added + lines[p].deleted;
   }
 
   const modules = Array.from(new Set(touched.map((p) => path.posix.dirname(rules.normRel(p))))).sort();
@@ -207,6 +216,7 @@ function observe(root, base, protectedPaths, opts) {
     files_deleted: removed,
     lines_added: added,
     lines_deleted: deleted,
+    doc_lines: docLines,
     modules,
     protected_hits: protectedHits,
   };

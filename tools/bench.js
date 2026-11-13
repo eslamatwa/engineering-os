@@ -46,11 +46,32 @@ const TASKS_ALL = [
   { id: 'feature', setup: (d) => sumProject(d, (x) => write(x, 'src/sum.js', SUM.replace('i = 1', 'i = 0'))), prompt: 'Add an average(list) function in src/average.js that returns 0 for an empty list, with tests in test/average.test.js (npm test runs every *.test.js in test/), and mention it in README.md. Make sure the tests pass.', ok: (d) => testsPass(d) && fs.existsSync(path.join(d, 'src/average.js')) },
 ];
 
+// A real project: BENCH_SUITE=latchkey with LK_SRC (a checkout) and LK_NODE_MODULES (app/ui/node_modules from npm ci).
+function copyProject(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    if (['.git', 'node_modules', 'target'].includes(e.name)) continue;
+    const s2 = path.join(src, e.name), d2 = path.join(dest, e.name);
+    if (e.isDirectory()) copyProject(s2, d2); else fs.copyFileSync(s2, d2);
+  }
+}
+function latchkey(d) {
+  copyProject(process.env.LK_SRC, d);
+  fs.cpSync(process.env.LK_NODE_MODULES, path.join(d, 'app', 'ui', 'node_modules'), { recursive: true });
+}
+const uiTests = (d) => cp.spawnSync('npm', ['--prefix', 'app/ui', 'test'], { cwd: d, shell: true, stdio: 'ignore' }).status === 0;
+if (process.env.BENCH_SUITE === 'latchkey') {
+  TASKS_ALL.length = 0;
+  TASKS_ALL.push(
+    { id: 'lk-analyze', setup: latchkey, check: 'test=npm --prefix app/ui test', prompt: 'Give me an overview of this project: the main modules (the Rust crates and the UI), how they connect, and the three biggest risks you see. Do not change any files.', ok: () => true },
+    { id: 'lk-forget-host', setup: latchkey, check: 'test=npm --prefix app/ui test', prompt: 'In app/ui/src/lib/recent-hosts.ts add forgetHost(host) that removes a remembered host, matching case-insensitively, and add tests for recentHosts, rememberHost and forgetHost to app/ui/tests/ui.test.mjs using a fake localStorage. Run the UI tests (npm --prefix app/ui test) and make sure they pass.', ok: (d) => uiTests(d) && /forgetHost/.test(fs.readFileSync(path.join(d, 'app/ui/src/lib/recent-hosts.ts'), 'utf8')) && /forgetHost/.test(fs.readFileSync(path.join(d, 'app/ui/tests/ui.test.mjs'), 'utf8')) },
+  );
+}
 const TASKS = ONLY.length ? TASKS_ALL.filter((t) => ONLY.includes(t.id)) : TASKS_ALL;
 
 function testsPass(d) { return cp.spawnSync('npm', ['test'], { cwd: d, shell: true, stdio: 'ignore' }).status === 0; }
 
-const TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Agent', 'Bash(engos:*)', 'Bash(npm test)', 'Bash(node:*)', 'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(ls:*)', 'Bash(cat:*)'];
+const TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Agent', 'Bash(engos:*)', 'Bash(npm test)', 'Bash(npm --prefix app/ui test)', 'Bash(node:*)', 'Bash(git status:*)', 'Bash(git diff:*)', 'Bash(git log:*)', 'Bash(ls:*)', 'Bash(cat:*)'];
 
 function runOnce(task, withPlugin, rep) {
   const dir = path.join(workDir, task.id + '-' + (withPlugin ? 'engos' : 'plain') + '-' + rep);
@@ -58,7 +79,7 @@ function runOnce(task, withPlugin, rep) {
   fs.mkdirSync(dir, { recursive: true });
   task.setup(dir);
   git(dir, ['init', '-q']);
-  if (withPlugin) cp.spawnSync(process.execPath, [CLI, 'init', '--models', 'haiku,sonnet,opus', '--check', 'test=npm test'], { cwd: dir, stdio: 'ignore' });
+  if (withPlugin) cp.spawnSync(process.execPath, [CLI, 'init', '--models', 'haiku,sonnet,opus', '--check', task.check || 'test=npm test'], { cwd: dir, stdio: 'ignore' });
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-q', '-m', 'start']);
   const args = ['-p', task.prompt, '--model', MODEL, '--permission-mode', 'acceptEdits', '--output-format', 'json', '--allowedTools'].concat(TOOLS);

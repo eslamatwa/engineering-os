@@ -54,5 +54,6 @@ Every decision in `docs/decisions.md` and how it is checked. Scenario IDs refer 
 | D48 | Version from AI_AGENT first | Phase 1 unit test; P14 |
 | D49 | MCP gate: host tools pass, others ask | Phase 7 unit tests (H6) |
 | D50 | Official plugin recommendations, never installed by us | Phase 7 unit test (D50) |
+| D51 | Docs lines don't count against the trivial budget | Phase 7 unit test (D51) |
 
 Every security decision (D4, D7, D9, D12, D14–D19, D24, D27, D29, D34–D38) has at least one running scenario, except D7, whose limits are stated rather than enforced.

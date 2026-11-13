@@ -110,6 +110,13 @@
       "max_changed_lines": 40,
       "max_created_files": 1,
       "max_deleted_files": 0,
+      "lines_not_counted": [
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.rst",
+        "**/*.adoc",
+        "**/*.txt"
+      ],
       "bash_allowed": [
         "read",
         "check",

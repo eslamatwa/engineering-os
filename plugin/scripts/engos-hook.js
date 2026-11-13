@@ -74,7 +74,7 @@ function sessionStart(core, input) {
   if (check.hard.length) lines.push('Read-only because: ' + check.hard.join(' '));
   if (check.warn.length) lines.push('Warnings: ' + check.warn.join(' '));
   lines.push('Small edits need nothing. If a change will touch 3+ files or auth, payments, secrets, migrations or deployment, first run (Bash): engos plan set --kind <kind> --scope-write "<globs>". Prove work with `engos check <name>`. Protected files, push, network, destructive commands and external MCP tools ask the user. Refusals say exactly what to run; never work around one.');
-  lines.push('Save cost: before reading more than 5 files to answer, review or document something, start one engos:scout agent (no model parameter; it runs on Haiku) with the file list and exactly what to extract, and work from its summary instead of reading the files yourself. Read a file yourself only when you are about to edit it. For planned steps run `engos step brief S<n>` and start the agent and model it prints.');
+  lines.push('Save cost: when a job needs most of a codebase or many logs read (documenting every module, an inventory, summarising logs), start one engos:scout agent (no model parameter; it runs on Haiku) with the files and exactly what to extract, and work from its summary instead of reading them yourself. For an ordinary question, search first and read only the few files that matter. For planned steps run `engos step brief S<n>` and start the agent and model it prints.');
 
   const brief = briefExcerpt(core, root); // skipped while it is still the unfilled template
   if (brief) lines.push('Project brief (excerpt):\n' + brief);

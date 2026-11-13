@@ -132,7 +132,7 @@ test('A2: going past the trivial budget raises the class and waits for a plan', 
 
 test('A2: too many changed lines raises the class after the edit', () => {
   const dir = project('a2b');
-  const e = edit(dir, 'notes.txt', lines(60));
+  const e = edit(dir, 'notes.js', lines(60));
   assert.ok(e.allowed);
   assert.match(e.post.json.reason, /now standard/);
   assert.strictEqual(active(dir).effective.class, 'standard');

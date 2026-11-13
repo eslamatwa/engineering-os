@@ -95,6 +95,7 @@ budgets:
     max_changed_lines: 40
     max_created_files: 1
     max_deleted_files: 0
+    lines_not_counted: ["**/*.md", "**/*.mdx", "**/*.rst", "**/*.adoc", "**/*.txt"]   # D51: docs lines don't count; the files still do
     bash_allowed: [read, check, vcs_local]
     on_exceed: { raise_to: standard, keep_changes: true, mark: pre_upgrade }
   standard:                   # default, tune

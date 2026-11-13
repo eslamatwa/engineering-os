@@ -117,3 +117,18 @@ test('cost: one command sets profile and plan; the refusal names that one comman
   assert.strictEqual(r.status, 0, r.stderr);
   assert.match(r.stdout, /Edits can continue/);
 });
+
+test('D51: lines in docs files do not count against the trivial budget; code lines do', () => {
+  const core = require(path.join(REPO, 'plugin', 'scripts', 'engos-core.js'));
+  const big = Array.from({ length: 120 }, (_, i) => 'line ' + i).join('\n') + '\n';
+  for (const [rel, want] of [['docs/MODULES.md', 'trivial_edit'], ['README.md', 'trivial_edit'], ['src/big.js', 'standard']]) {
+    const dir = project('d51-' + rel.replace(/\W/g, ''));
+    cp.execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'x'], { cwd: dir });
+    const file = path.join(dir, rel);
+    assert.strictEqual(hook('pre-tool-use', dir, { tool_name: 'Write', tool_input: { file_path: file } }).code, 0);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, big);
+    hook('post-tool-use', dir, { tool_name: 'Write', tool_input: { file_path: file } });
+    assert.strictEqual(core.activeTask(dir, SID).effective.class, want, rel);
+  }
+});

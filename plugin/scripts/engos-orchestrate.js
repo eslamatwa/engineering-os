@@ -274,7 +274,7 @@ function bindStart(task, agentId, agentType) {
 const CARD_EXTRA = {
   implementer: 'Change only files inside the write scope. Run checks only with `engos check <name>`; never retype the test command. If a criterion looks wrong, say so with status disputes_criterion instead of working around it.',
   triager: 'Cite exact files, lines and log lines. Put your best explanation in `hypothesis`, every quoted log line in `quotes` (file and exact text; code checks they exist verbatim), and the components involved in `components`.',
-  analyst: 'Separate verified facts (each with a file:line source) from assumptions. Put your explanation in `hypothesis` when you give one; list `components` you looked at.',
+  analyst: 'Be selective: search first, open only files that answer the brief, stop when you can answer. Separate verified facts (each with a file:line source) from assumptions. Put your explanation in `hypothesis` when you give one; list `components` you looked at.',
   architect: 'Compare at least two options with trade-offs; state what would change the choice. Unknowns become questions for the human, not guesses.',
   critic: 'Find the weakest assumption in the proposal and how to test it. Give verdict pass only if nothing blocking remains.',
   security_reviewer: 'Each finding needs a ref (path:line), severity (info, low, medium, high, critical) and remediation. Don\'t fix anything.',

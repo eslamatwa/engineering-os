@@ -335,3 +335,8 @@ All unit tests: 74 of 74.
 - One command opens a standard task (`engos plan set --kind … --scope-write …`); the refusal names that one command; shorter session summary; the empty brief template is no longer injected; the session summary tells the lead to send heavy reading to an `engos:scout` on Haiku.
 - Benchmark round 3 (`docs/benchmark.md`): big reading-heavy task −41% and project analysis −23% against plain Claude Code; small edits +2–3%; a small 3-file feature +19%. Reading through a scout is slower in wall-clock time.
 - 76 of 76 unit tests.
+
+### Phase 7 additions: D51 and a real project
+
+- D51: lines in docs files no longer count against the trivial budget (unit test). 77 of 77 unit tests.
+- latchkey (the owner's Rust + Svelte password manager, 193 files): `engos recommend` suggested rust-analyzer, typescript-lsp, frontend-design, context7, playwright and GitHub (and pyright for 3 helper scripts). Benchmark round 4 in `docs/benchmark.md`: analysis −14%, a code task with tests +10%. The scout is now selective and used only for jobs that need most of a codebase read.

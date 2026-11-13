@@ -283,7 +283,7 @@ function recompute(profile, rules, protectedPaths) {
 function exceedsTrivial(observed, b) {
   const o = observed || {};
   return (o.files_count || 0) > (b.max_files == null ? 2 : b.max_files)
-    || ((o.lines_added || 0) + (o.lines_deleted || 0)) > (b.max_changed_lines == null ? 40 : b.max_changed_lines)
+    || ((o.lines_added || 0) + (o.lines_deleted || 0) - (o.doc_lines || 0)) > (b.max_changed_lines == null ? 40 : b.max_changed_lines) // D51
     || (o.files_created || 0) > (b.max_created_files == null ? 1 : b.max_created_files)
     || (o.files_deleted || 0) > (b.max_deleted_files == null ? 0 : b.max_deleted_files);
 }
