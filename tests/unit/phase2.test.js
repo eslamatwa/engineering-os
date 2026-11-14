@@ -35,6 +35,9 @@ function project(name, initArgs) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engos-p2-' + name + '-'));
   git(dir, ['init', '-q']);
   write(dir, 'utils/io.py', 'tmp = 1\nprint(tmp)\n');
+  write(dir, 'utils/b.py', 'b = 1\n');
+  write(dir, 'utils/c.py', 'c = 1\n');
+  write(dir, 'utils/d.py', 'd = 1\n');
   write(dir, 'src/auth/session.ts', 'export const timeout = 30;\n');
   write(dir, 'src/session/refresh.ts', 'export function refresh() {}\n');
   write(dir, 'src/billing/x.ts', 'export const price = 1;\n');
@@ -113,6 +116,8 @@ test('A2: going past the trivial budget raises the class and waits for a plan', 
   const dir = project('a2');
   assert.ok(edit(dir, 'a.txt', 'a\n').allowed);
   assert.ok(edit(dir, 'utils/io.py', 'x = 2\n').allowed);
+  assert.ok(edit(dir, 'utils/b.py', 'b = 2\n').allowed);
+  assert.ok(edit(dir, 'utils/c.py', 'c = 2\n').allowed, 'four files fit the trivial budget (D54)');
   const third = edit(dir, 'README.md', '# changed\n');
   assert.strictEqual(third.allowed, false);
   assert.match(third.pre.stderr, /raises the task from trivial_edit to standard/);
@@ -208,7 +213,7 @@ test('A6: a script that rewrites a gitignored protected file is caught after the
 
 test('A7: new, staged and renamed files all count toward the budget', () => {
   const dir = project('a7');
-  const b = bash(dir, 'node -e "require(\'fs\').writeFileSync(\'new.txt\',\'n\\n\');require(\'fs\').appendFileSync(\'README.md\',\'more\\n\')" && git add README.md && git mv utils/io.py utils/io2.py');
+  const b = bash(dir, 'node -e "require(\'fs\').writeFileSync(\'new.txt\',\'n\\n\');require(\'fs\').appendFileSync(\'README.md\',\'more\\n\');require(\'fs\').appendFileSync(\'utils/c.py\',\'x\\n\');require(\'fs\').appendFileSync(\'utils/d.py\',\'x\\n\')" && git add README.md && git mv utils/io.py utils/io2.py');
   assert.ok(b.allowed, b.pre && b.pre.stderr);
   const t = active(dir);
   const touched = t.observed.files_touched.join(' ');
@@ -216,7 +221,7 @@ test('A7: new, staged and renamed files all count toward the budget', () => {
   assert.match(touched, /README\.md/, 'staged change counts');
   assert.match(touched, /utils\/io2\.py/);
   assert.ok(t.observed.files_created >= 1);
-  assert.strictEqual(t.effective.class, 'standard', 'more than 2 files: raised');
+  assert.strictEqual(t.effective.class, 'standard', 'more than 4 files: raised');
 });
 
 test('A8: unknown commands need approval in high_risk tasks unless listed as known', () => {

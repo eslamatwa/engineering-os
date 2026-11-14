@@ -12,8 +12,8 @@ Default setup unless stated: a git repo with `.engos/` from `/engos:init`, `chec
 - **Then** a `TASK-auto` opens as `trivial_edit`; no subagent is started; the test check runs and is recorded; the task closes with `E-diff-shown` and `E-checks-if-present`; no approval is requested.
 
 ### A2 · Budget exceeded raises the class
-- **Given** a trivial task that has changed 2 files.
-- **When** the lead edits a third file.
+- **Given** a trivial task that has changed 4 files (D54).
+- **When** the lead edits a fifth file.
 - **Then** the edit is denied; class becomes `standard`; state `upgrade_pending`; earlier changes stay and are marked `pre_upgrade`; writes resume only after a profile and plan exist.
 
 ### A3 · Misjudged change is caught by path

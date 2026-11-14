@@ -118,7 +118,7 @@
   },
   "budgets": {
     "trivial_edit": {
-      "max_files": 2,
+      "max_files": 4,
       "max_changed_lines": 40,
       "max_created_files": 1,
       "max_deleted_files": 0,

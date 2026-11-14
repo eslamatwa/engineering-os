@@ -47,6 +47,8 @@ function project(name, checks) {
   write(dir, 'src/a.ts', 'a\n');
   write(dir, 'src/b.ts', 'b\n');
   write(dir, 'lib/c.ts', 'c\n');
+  write(dir, 'src/d.ts', 'd\n');
+  write(dir, 'src/e.ts', 'e\n');
   write(dir, 'src/auth/session.ts', 'export const timeout = 30;\n');
   const args = ['init'];
   for (const c of checks === undefined ? ['test=node -e 0'] : checks) args.push('--check', c);
@@ -140,10 +142,12 @@ test('a standard task needs scope, checks and residual risk; pre-upgrade changes
   const dir = project('standard');
   edit(dir, 'src/a.ts', 'x\n');
   edit(dir, 'src/b.ts', 'y\n');
+  edit(dir, 'src/d.ts', 'y\n');
+  edit(dir, 'src/e.ts', 'y\n');
   const pre = hook('pre-tool-use', dir, { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'lib/c.ts') } });
-  assert.strictEqual(pre.code, 2, 'third file raises to standard');
+  assert.strictEqual(pre.code, 2, 'fifth file raises to standard');
   const id = task(dir).task_id;
-  assert.deepStrictEqual(task(dir).pre_upgrade_files.sort(), ['src/a.ts', 'src/b.ts']);
+  assert.deepStrictEqual(task(dir).pre_upgrade_files.sort(), ['src/a.ts', 'src/b.ts', 'src/d.ts', 'src/e.ts']);
   cli(dir, ['profile', 'set', '--kind', 'refactor']);
   cli(dir, ['plan', 'set', '--scope-write', 'lib/**', '--acceptance', 'tests pass; c is renamed']);
   edit(dir, 'lib/c.ts', 'c2\n');
