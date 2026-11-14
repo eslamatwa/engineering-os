@@ -2,7 +2,7 @@
 
 Engineering discipline for Claude Code, enforced by hooks rather than requested in a prompt. Engineering OS sits between Claude and its tools:
 
-- **Gates every file edit, shell command (Bash, PowerShell), agent call and external MCP call.** Commands are unwrapped (subshells, `bash -c`, `eval`, `npx`, `xargs`) and classified; protected files and the task's planned scope are enforced.
+- **Gates every file edit, shell command (Bash, PowerShell), agent call and external MCP call.** Commands are unwrapped (subshells, nested shells and command wrappers) and classified; protected files and the task's planned scope are enforced.
 - **Classifies each task by what the code touches** (`question` → `trivial_edit` → `standard` → `high_risk`); the class only goes up.
 - **Asks you through Claude Code's own Allow/Deny prompt** for pushes, publishing, network calls, destructive commands, external MCP tools and the first edit of each protected file. Every approval is recorded.
 - **Requires evidence before a task closes:** `engos check <name>` runs your own test, lint or build command and records the real exit code.
