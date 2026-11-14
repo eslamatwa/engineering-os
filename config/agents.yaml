@@ -27,14 +27,14 @@ agents:
     tools: [Read, Grep, Glob, Bash]    # Bash limited to class `read` by the gate
     can_edit: false
     can_spawn_agents: false
-    effort: low                        # default, tune
+    effort: low                        # default, tune. NOT APPLIED in v0.1: the agent file sets no effort
   worker:
     file: agents/worker.md
     tier: per_call                     # model parameter set by the router, checked by the gate
     purpose: implement one step inside its scope
     tools: [Read, Grep, Glob, Edit, Write, Bash]
     can_spawn_agents: false
-    effort: medium                     # default, tune
+    effort: medium                     # default, tune. NOT APPLIED in v0.1: the agent file sets no effort
   validator:
     file: agents/validator.md
     tier: per_call                     # from assurance (config/rules.yaml validator_tier_rules)
@@ -42,7 +42,7 @@ agents:
     tools: [Read, Grep, Glob, Bash]    # Bash limited to read + configured checks
     can_edit: false
     can_spawn_agents: false
-    effort: medium                     # default, tune
+    effort: medium                     # default, tune. NOT APPLIED in v0.1: the agent file sets no effort
 
 built_in_agents_allowed_in_task: [Explore, Plan]   # D24
 

@@ -110,12 +110,12 @@ budgets:
     lines_not_counted: ["**/*.md", "**/*.mdx", "**/*.rst", "**/*.adoc", "**/*.txt"]   # D51: docs lines don't count; the files still do
     bash_allowed: [read, check, vcs_local]
     on_exceed: { raise_to: standard, keep_changes: true, mark: pre_upgrade }
-  standard:                   # default, tune
+  standard:                   # default, tune. NOT ENFORCED in v0.1: no code reads these yet
     max_files: 25
     max_changed_lines: 800
     max_deleted_files: 5
     on_exceed: replan
-  lead_integration_edit:      # small fix by the lead inside standard/high_risk (D25 context). default, tune
+  lead_integration_edit:      # small fix by the lead inside standard/high_risk (D47). default, tune. Only max_files is enforced
     max_files: 2
     max_changed_lines: 40
 
@@ -135,7 +135,7 @@ floors:
   - id: F-standard-path
     when: { touches_protected: standard }
     class: standard
-  - id: F-multi-module            # default, tune
+  - id: F-multi-module            # default, tune. The threshold (3 folders) is fixed in engos-rules.js, not read from here
     when: { observed.modules: { min_count: 3 } }
     class: standard
   - id: F-protected
@@ -214,7 +214,7 @@ observation:
   protected_snapshot:
     covers: [protected_paths.high_risk, protected_paths.standard, protected_paths.never]
     fields: [size, mtime]          # taken at task open and after each command; works for gitignored files
-    limit_files: 2000              # default, tune; above this, sample and warn
+    limit_files: 2000              # default, tune; the observer uses 2000 directly, not this value
   compare_with: task_open_snapshot
 
 # ---------------------------------------------------------------------------
