@@ -669,6 +669,8 @@ function escalateAfterCheck(root, task, r) {
     console.log('Tell the user what was tried, add your recommendation, and ask them to type /engos:decide ' + task.task_id + ' <' + task.decision_options.join('|') + '>.');
   } else if (label === 'env_error') {
     console.log('Labelled env_error (missing command or dependency): it doesn\'t count as an attempt for ' + esc.step + '. Fix the environment and run the check again. A second env_error in this step goes to the user.');
+  } else if (esc.label === 'criterion_disputed') {
+    console.log('The worker on ' + esc.step + ' disputes a criterion, so this failure does not count as an attempt (D21). Settle it with engos dispute open or engos criteria amend, or ask the user if the check is not yours to change.');
   } else if (label === 'check_failed') {
     const st = (task.step_state || {})[esc.step] || {};
     console.log('Attempt ' + esc.failures + ' of ' + (st.allowed_attempts || 3) + ' for ' + esc.step + ' failed. For the next attempt run `engos step brief ' + esc.step + '` (it gives the tier) and include the failing output above as prior_failure.');

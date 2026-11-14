@@ -28,7 +28,7 @@ Status column: **verified** = confirmed in `docs/spike-results.md`; **pending** 
 | H8 | `PostToolUseFailure` | `Agent\|Task` | Free a failed launch; mark a model the account lacks as unavailable (D32). Checks don't need it: `engos check` records exit codes itself (D36). | default | built, phase 5; the failure text is matched loosely (pending a real failure) |
 | H9 | `PostToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | Update observed counts | default | built and tested, phase 2 |
 | H10 | `SubagentStart` | all | Inject role card and step contract; ledger `step.started` | default | built and tested, phase 5; injection verified (P11) |
-| H11 | `SubagentStop` | all | Read report, compare with observed changes; ledger `step.ended`. A bad report is sent back once (`decision: block`). | default | built and tested, phase 5; send-back verified (P12) |
+| H11 | `SubagentStop` | all | Read report, compare with observed changes; ledger `step.ended`. A bad report is sent back once (`decision: block`). A worker reporting `disputes_criterion` makes that attempt not count (D21) and tells the lead to open a dispute or amend the criteria. | default | built and tested, phase 5; send-back verified (P12) |
 | H12 | `Stop` | all | Remind about open tasks. No enforcement. | default | not built (optional) |
 | — | Status line | — | Reads `.engos/status.json`, rebuilt once per hook or CLI run that wrote to the ledger | — | built and tested, phase 6; terminal verified (H2), Desktop pending (H2b) |
 

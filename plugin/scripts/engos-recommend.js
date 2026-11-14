@@ -14,6 +14,7 @@ function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8'))
 function signals(root) {
   const files = new Set();
   const ext = new Set();
+  const extCount = {};
   let list = [];
   try {
     list = cp.execFileSync('git', ['-C', root, 'ls-files', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean);
@@ -24,8 +25,10 @@ function signals(root) {
     if (/(^|\/)(node_modules|vendor|dist|build)\//.test(f)) continue;
     files.add(f);
     const m = /(\.[A-Za-z0-9]+)$/.exec(f);
-    if (m) ext.add(m[1].toLowerCase());
+    if (m) { const e = m[1].toLowerCase(); extCount[e] = (extCount[e] || 0) + 1; }
   }
+  // An extension counts as a language of the project only with a few files of it, so a handful of helper scripts don't pull in a language server.
+  for (const e of Object.keys(extCount)) if (extCount[e] >= 5) ext.add(e);
   const deps = new Set();
   for (const f of list.filter((x) => /(^|\/)package\.json$/.test(x) && !/node_modules/.test(x)).slice(0, 20)) {
     const p = readJson(path.join(root, f)) || {};

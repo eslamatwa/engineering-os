@@ -132,3 +132,20 @@ test('D51: lines in docs files do not count against the trivial budget; code lin
     assert.strictEqual(core.activeTask(dir, SID).effective.class, want, rel);
   }
 });
+
+test('D21: a disputed criterion is not an attempt; unknown step kinds are refused instead of routed to the top tier', () => {
+  const O = require(path.join(REPO, 'plugin', 'scripts', 'engos-orchestrate.js'));
+  const core = require(path.join(REPO, 'plugin', 'scripts', 'engos-core.js'));
+  const D = core.defaults();
+  const task = { task_id: 'TASK-1', effective: { class: 'standard' }, declared: { kind: 'bugfix' }, planned: { steps: [] } };
+  assert.throws(() => O.planSteps(task, ['S1:fix sum loop'], D), /unknown step kind "fix sum loop".*implement/);
+  const [step] = O.planSteps(task, ['S1:implement'], D);
+  assert.strictEqual(step.tier, 'balanced');
+  task.planned.steps = [step];
+  task.agents = [{ id: 'A1', role: 'worker', step: 'S1', status: 'ended', result: 'criterion_disputed', launched_at: new Date().toISOString() }];
+  task.current_step = 'S1';
+  const r = O.applyCheck(task, 'check_failed', D);
+  assert.strictEqual(r.label, 'criterion_disputed');
+  assert.strictEqual(O.failuresFor(task, 'S1'), 0);
+  assert.strictEqual(O.expectedFor(task, step, D, { available: ['haiku', 'sonnet', 'opus'] }).model, 'sonnet');
+});

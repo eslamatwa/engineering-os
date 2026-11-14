@@ -89,6 +89,7 @@ function planSteps(task, specs, D) {
   return specs.map((s) => {
     const [id, kind = 'implement', by] = String(s).split(':').map((x) => x.trim());
     if (!/^S\d+$/.test(id)) throw new Error('step ids look like S1, S2 (got "' + id + '")');
+    if (!(D.agents.step_kinds || {})[kind]) throw new Error('unknown step kind "' + kind + '" in ' + id + '. Use one of: ' + Object.keys(D.agents.step_kinds || {}).join(', ') + ' (e.g. S1:implement)');
     const k = stepKind(kind, D);
     const step = { id, kind, by: by || k.by, role: k.role };
     const r = routeStep(task, step, D);
@@ -422,6 +423,7 @@ function applyCheck(task, label, D) {
     if (st.env_errors >= ((D.rules.escalation && D.rules.escalation.env_error_limit_per_step) || 2)) res.envLimit = true;
     return res;
   }
+  if (last.result === 'criterion_disputed') { res.label = 'criterion_disputed'; res.failures = failuresFor(task, stepId); return res; } // D21: not an attempt
   if (!last.result || last.result === 'passed') last.result = 'check_failed';
   res.failures = failuresFor(task, stepId);
   const allowed = st.allowed_attempts || attemptsPerStep(D);

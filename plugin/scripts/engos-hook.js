@@ -171,7 +171,6 @@ function askFile(core, root, sessionId, task, rel) {
 // ---------------------------------------------------------------------------
 function gateWrite(core, root, session, input, cfg) {
   const R = require('./engos-rules.js');
-  const A = require('./engos-approvals.js');
   const sessionId = session.session_id;
   const ti = input.tool_input || {};
   const rel = relPath(root, ti.file_path || ti.notebook_path);
@@ -186,12 +185,12 @@ function gateWrite(core, root, session, input, cfg) {
     return;
   }
 
-  const O = require('./engos-orchestrate.js');
-  const subRole = O.roleOfType(input.agent_type);
+  // Loaded lazily: most edits come from the lead with no agents involved (D44 latency).
+  const subRole = input.agent_type === 'engos:scout' ? 'scout' : input.agent_type === 'engos:validator' ? 'validator' : null;
   if (input.agent_id && (subRole === 'scout' || subRole === 'validator')) deny(core, root, sessionId, null, 'G-agent-readonly', input.tool_name, input.agent_type + ' never edits files. Report what should change instead.');
 
   let task = core.activeTask(root, sessionId);
-  if (task && O.readOnlyTask(task, core.defaults())) deny(core, root, sessionId, task, 'G-read-only-task', input.tool_name, task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: report findings and propose fixes as a new task instead of editing.');
+  if (task && task.declared && task.declared.kind && ((core.defaults().rules.task_modes || {}).read_only_kinds || []).includes(task.declared.kind)) deny(core, root, sessionId, task, 'G-read-only-task', input.tool_name, task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: report findings and propose fixes as a new task instead of editing.');
   if (!task) {
     if (level === 'high_risk' || level === 'standard') {
       task = core.openTask(root, sessionId, { cls: level, state: 'upgrade_pending', openedBy: 'auto', trigger: 'F-protected:' + rel, sources: ['F-protected'], summary: 'Edit to ' + rel });
@@ -239,7 +238,7 @@ function gateWrite(core, root, session, input, cfg) {
       if (!mine.includes(rel) && mine.length >= budget.max_files) deny(core, root, sessionId, task, 'G-lead-budget', input.tool_name, 'the plan gives implementation to workers (' + workerSteps.map((x) => x.id).join(', ') + '), and the lead already edited ' + mine.length + ' files itself (' + mine.join(', ') + '; limit ' + budget.max_files + '). Run `engos step brief ' + workerSteps[0].id + '` and start the worker.');
     }
   }
-  if (level === 'high_risk' && !A.fileApproved(task, rel)) askFile(core, root, sessionId, task, rel);
+  if (level === 'high_risk' && !require('./engos-approvals.js').fileApproved(task, rel)) askFile(core, root, sessionId, task, rel);
 }
 
 // ---------------------------------------------------------------------------
@@ -262,13 +261,12 @@ function gateBash(core, root, session, input, cfg) {
     deny(core, root, sessionId, null, 'G-read-only-session', 'Bash', 'this session is read-only, so only read commands can run. ' + (session.reasons || []).join(' '));
   }
 
-  const O = require('./engos-orchestrate.js');
-  const subRole = input.agent_id ? O.roleOfType(input.agent_type) : null;
+  const subRole = !input.agent_id ? null : input.agent_type === 'engos:scout' ? 'scout' : input.agent_type === 'engos:validator' ? 'validator' : null; // no module load (D44)
   if (subRole === 'scout' && !res.parts.every((p) => p.cls === 'read')) deny(core, root, sessionId, null, 'G-agent-readonly', 'Bash', 'engos:scout can only run read commands.');
   if (subRole === 'validator' && !res.parts.every((p) => p.cls === 'read' || p.cls === 'check')) deny(core, root, sessionId, null, 'G-agent-readonly', 'Bash', 'engos:validator can only run read commands and `engos check <name>`.');
 
   let task = session.paused ? null : core.activeTask(root, sessionId);
-  if (task && O.readOnlyTask(task, core.defaults()) && !res.parts.every((p) => harmless(p.cls))) deny(core, root, sessionId, task, 'G-read-only-task', 'Bash', task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: only read commands and checks run. Suggest other commands to the user instead.');
+  if (task && task.declared && ((core.defaults().rules.task_modes || {}).read_only_kinds || []).includes(task.declared.kind) && !res.parts.every((p) => harmless(p.cls))) deny(core, root, sessionId, task, 'G-read-only-task', 'Bash', task.task_id + ' is a ' + task.declared.kind + ' task, which is read-only: only read commands and checks run. Suggest other commands to the user instead.');
   const taskCls = task ? task.effective.class : 'question';
   let worst = 'allow';
   let worstPart = null;
@@ -556,6 +554,11 @@ function subagentStop(core, input) {
   const st = a.step ? O.stepState(task, a.step) : null;
   if (st && a.role !== 'worker') st.status = 'done';
   if (st && a.role === 'worker' && chk.report && chk.report.status === 'blocked') st.status = 'blocked_by_worker';
+  if (a.role === 'worker' && chk.report && chk.report.status === 'disputes_criterion') { // D21: not an attempt; the lead decides how to settle it
+    a.result = 'criterion_disputed';
+    task.notices = (task.notices || []).concat(['Engineering OS: the worker on ' + (a.step || a.id) + ' disputes an acceptance criterion, so this attempt does not count (D21). Settle it: `engos dispute open --about <AC> --reason "..."`, or `engos criteria amend --set "..." --reason "..."` (the user decides in high_risk). If the check itself is protected or owned by someone else, ask the user.']);
+    core.ledger(root, { type: 'step.criterion_disputed', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step });
+  }
   if (chk.facts.components && chk.facts.components.length > 1 && !task.cross_system) {
     task.cross_system = true; // D22: later steps go one tier up
     core.ledger(root, { type: 'uncertainty.cross_system', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, components: chk.facts.components });
