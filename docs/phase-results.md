@@ -385,3 +385,12 @@ Review: `docs/reviews/fable-project-review.md`. One test per finding in `tests/u
 | Docs | README, architecture, hooks, contract, policies and security corrected to match the code; superseded decisions marked |
 
 Left open, by design or for later: a "No" in Claude Code's prompt is not visible to hooks; escalation applies only when worker steps are planned (D47); sensitivity flags are declared by the model; subagent attribution is by launch order; the status rebuild reads every task profile (fine for hundreds of tasks); paused sessions are not observed; paths outside the repo and symlinks are not gated; no file locking; lowering a class ignores the floors that held it at that time; a dispute settled for the worker doesn't replace a failing review at close; "Don't ask again" in Claude Code writes `.claude/settings.local.json`, which may be flagged as a `never` change (untested).
+
+### Phase 7: live view, all ten ideas (D53)
+
+Built: `plugin/scripts/engos-usage.js` (tokens and cost from transcripts, incremental), status additions (usage per task and agent, check history, flaky checks, health, recent closed tasks), `--serve` endpoints (`diff.js`, `events.js`, `projects.js`), and the page: cost card with a per-model bar, timeline lanes, diff overlay, Arabic RTL, notifications, replay slider, Markdown export, health strip, check history, all projects, theme toggle.
+
+- Cost check (P16): transcript-based $0.1940 against Claude Code's $0.19392 for the same run.
+- Browser check (demo with a scout on Haiku, two workers on Sonnet, a lead on Opus, a failed check and a pending push): every panel rendered; diff colours additions and deletions; replay rebuilt the task at event 9 of 20; the project list showed this project; the export produced a full Markdown report; Arabic flips the layout with connected letters; phone width has no horizontal scroll. Notifications need the user's browser permission and were not exercised.
+- A bug found and fixed on the way: the first registry location (`~/.engos/projects.json`) made the home folder look like a project (a folder named `.engos` marks one). The registry moved to `%LOCALAPPDATA%\engos` / `~/.config/engos`; the stray folder (created by the test run minutes earlier) was removed; a test pins the new location.
+- `tests/unit/live-view.test.js` (7 tests). All unit tests: 100 of 100.

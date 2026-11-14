@@ -137,6 +137,30 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
 .files code { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
 .three { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
 @media (max-width: 900px) { .three { grid-template-columns: 1fr; } }
+/* v0.1 additions: health, cost, timeline lanes, diff, replay, projects, Arabic */
+.stats { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.health { display: flex; flex-wrap: wrap; gap: 4px 14px; font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); padding: 0 4px; }
+.health b { color: var(--ink); font-weight: 500; }
+.health .warn { color: var(--warn); }
+.mbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); margin-top: 8px; }
+.mbar i { display: block; height: 100%; }
+.lanes { overflow-x: auto; }
+.lanes svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.lane-label { fill: var(--ink-2); font-size: 11px; font-family: var(--f-mono); }
+.lane-bg { fill: var(--sunk); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.overlay .card { width: min(980px, 100%); max-height: 86vh; overflow: auto; }
+.diff { font-family: var(--f-mono); font-size: 12px; white-space: pre; overflow-x: auto; margin: 0; direction: ltr; text-align: left; }
+.diff .a { color: var(--ok); } .diff .d { color: var(--bad); } .diff .h { color: var(--ink-2); }
+.replay input[type=range] { width: 100%; }
+.projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.badge { font-family: var(--f-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--warn); color: var(--warn); margin-inline-start: 6px; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+[dir="rtl"] body { font-family: "Segoe UI", Tahoma, system-ui, sans-serif; }
+[dir="rtl"] .graph, [dir="rtl"] .lanes { direction: ltr; }
+[dir="rtl"] .eyebrow, [dir="rtl"] .sub { letter-spacing: 0; text-transform: none; font-family: var(--f-ui); font-size: 12px; }
+[dir="rtl"] .stat .s, [dir="rtl"] .kv dd, [dir="rtl"] .how, [dir="rtl"] .who, [dir="rtl"] .list li, [dir="rtl"] .feed li > div, [dir="rtl"] .title, [dir="rtl"] .health { unicode-bidi: plaintext; }
 </style>
 </head>
 <body>
@@ -147,7 +171,63 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
 'use strict';
 (function () {
   // Read-only: this page only reads status.js. Nothing here approves, decides or sends anything (E2, D34).
-  var state = { status: null, selected: null, sel: null, filter: 'all', open: {}, paused: false, lastAt: 0 };
+  function stored(k, d) { try { var v = localStorage.getItem('engos.' + k); return v == null ? d : v; } catch (_) { return d; } }
+  function store(k, v) { try { localStorage.setItem('engos.' + k, v); } catch (_) { /* private mode */ } }
+  var SERVED = location.protocol.indexOf('http') === 0;
+  var state = { status: null, selected: null, sel: null, filter: 'all', open: {}, paused: false, lastAt: 0,
+    lang: stored('lang', (navigator.language || '').indexOf('ar') === 0 ? 'ar' : 'en'), theme: stored('theme', ''),
+    view: 'task', diff: null, replay: null, projects: null, notify: stored('notify', '') === '1', seen: null };
+  var AR = {
+    'Agents': 'الـ agents', 'Attempts': 'المحاولات', 'Checks': 'الفحوص', 'Waiting for you': 'ينتظرك', 'Cost': 'التكلفة',
+    'Who is working · select a box for details': 'من يعمل · اضغط على أي مربع للتفاصيل', 'Details': 'التفاصيل',
+    'What happened · select an event': 'ما حدث · اضغط على أي حدث', 'Files': 'الملفات', 'Evidence': 'الأدلة',
+    'Timeline': 'الخط الزمني', 'Pause updates': 'إيقاف التحديث', 'Resume updates': 'استئناف التحديث',
+    'Replay': 'إعادة تشغيل', 'Export report': 'تصدير تقرير', 'Notify me': 'نبهني', 'Notifications on': 'التنبيهات مفعّلة',
+    'All projects': 'كل المشاريع', 'Back to the task': 'رجوع للمهمة', 'Close': 'إغلاق', 'No open task': 'لا توجد مهمة مفتوحة',
+    'Nothing is waiting for you.': 'لا شيء ينتظرك.', 'Nothing here yet.': 'لا شيء بعد.', 'No files changed.': 'لم يتغير أي ملف.',
+    'running': 'يعمل', 'done': 'انتهى', 'queued': 'في الانتظار', 'passed': 'نجح', 'failed': 'فشل', 'nothing': 'لا شيء',
+    'Check history': 'تاريخ الفحوص', 'flaky': 'متقلّب', 'lead': 'الـ lead', 'agents': 'الـ agents', 'tokens': 'توكن',
+    'estimate at list prices': 'تقدير بالأسعار المعلنة', 'Select a file to see its diff.': 'اضغط على ملف لترى تعديلاته.',
+    'Diffs need engos view --serve.': 'عرض التعديلات يحتاج engos view --serve.', 'Loading…': 'جارٍ التحميل…',
+    'Read-only view. It refreshes by itself and never approves anything.': 'عرض للقراءة فقط. يتحدّث وحده ولا يوافق على أي شيء.',
+    'This page is read-only. Approvals and decisions happen only in the Claude Code session.': 'هذه الصفحة للقراءة فقط. الموافقات والقرارات تتم داخل جلسة Claude Code فقط.',
+    'event': 'حدث', 'of': 'من', 'class': 'الدرجة', 'All': 'الكل', 'Gate': 'البوابة', 'You': 'أنت',
+    'Model asked for a different tier than ran': 'الموديل الذي عمل يختلف عن المطلوب', 'live': 'مباشر', 'updated': 'تحدّث', 'ago': 'مضت',
+    'not updating': 'لا يتحدّث', 'updates paused': 'التحديث متوقف', 'waiting': 'ينتظر', 'Open tasks': 'مهام مفتوحة',
+    'Last closed': 'آخر مهمة أُغلقت', 'This project': 'هذا المشروع', 'Project list needs engos view --serve.': 'قائمة المشاريع تحتاج engos view --serve.',
+  };
+  function T(k) { return state.lang === 'ar' && AR[k] ? AR[k] : k; }
+  // Arabic for the most common events; anything else keeps the English text from the hooks.
+  function evText(e) {
+    if (state.lang !== 'ar') return e.text;
+    var d = e.data || {};
+    switch (e.type) {
+      case 'task.opened': return (e.task_id || '') + ' فُتحت بدرجة ' + (d.class || '');
+      case 'task.closed': return (e.task_id || '') + ' أُغلقت مع الأدلة';
+      case 'class.changed': return 'الدرجة ' + (d.from || '') + ' ← ' + (d.to || '');
+      case 'evidence.recorded': return 'فحص ' + (d.name || '') + (d.passed ? ' نجح' : ' فشل') + ' (exit ' + d.exit + ')';
+      case 'gate.denied': return 'البوابة رفضت ' + (d.tool || '') + ' · ' + (d.rule_id || '');
+      case 'approval.requested': return 'طلب موافقتك';
+      case 'approval.granted': return 'وافقت';
+      case 'step.ended': return (d.step || d.launch || '') + ' انتهى';
+      case 'step.started': return (d.step || d.launch || '') + ' بدأ';
+      case 'validation.verdict': return 'مراجعة ' + (d.step || '') + ': ' + (d.verdict || '');
+      case 'decision.recorded': return 'قرارك: ' + (d.option || '');
+      default: return e.text;
+    }
+  }
+  function applyLang() { document.documentElement.lang = state.lang; document.documentElement.dir = state.lang === 'ar' ? 'rtl' : 'ltr'; }
+  function applyTheme() { if (state.theme) document.documentElement.setAttribute('data-theme', state.theme); else document.documentElement.removeAttribute('data-theme'); }
+  applyLang(); applyTheme();
+  function money(v) { return v == null ? '–' : '$' + (v < 0.01 && v > 0 ? v.toFixed(4) : v.toFixed(3)); }
+  function ktok(n) { return n == null ? '–' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n); }
+  function modelSplit(t) {
+    var by = {};
+    function add(map) { for (var m in map) { var f = fam(m) || 'other'; var u = map[m]; by[f] = (by[f] || 0) + (u.input + u.output + u.cache_read + u.cache_write_5m + u.cache_write_1h); } }
+    if (t.usage && t.usage.lead && t.usage.lead.by_model) add(t.usage.lead.by_model);
+    (t.agents || []).forEach(function (a) { if (a.usage && a.usage.by_model) add(a.usage.by_model); });
+    return by;
+  }
   var MODEL = { haiku: 'var(--haiku)', sonnet: 'var(--sonnet)', opus: 'var(--opus)', fable: 'var(--fable)' };
   var FILTERS = [['all', 'All'], ['agents', 'Agents'], ['checks', 'Checks'], ['gate', 'Gate'], ['you', 'You']];
 
@@ -172,8 +252,37 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     state.lastAt = Date.now();
     if (state.paused || (state.status && state.status.generated_at === s.generated_at)) { tick(); return; }
     state.status = s;
+    notifyWaiting(s);
     render();
   };
+  function waitingKeys(s) {
+    var keys = [];
+    (s.approvals || []).forEach(function (a) { keys.push('a:' + a.approval_id + '|' + (a.task_id || '') + '|' + a.action); });
+    (s.tasks || []).forEach(function (t) { if (t.needs_human) keys.push('h:' + t.task_id + '|' + t.needs_human.reason); if (t.deep_pending) keys.push('f:' + t.task_id + '|' + t.deep_pending.step); });
+    return keys;
+  }
+  // Information only: the notification says something waits in the session. It can't approve anything.
+  function notifyWaiting(s) {
+    var keys = waitingKeys(s);
+    if (state.seen && state.notify && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      keys.filter(function (k) { return state.seen.indexOf(k) < 0; }).forEach(function (k) {
+        var parts = k.slice(2).split('|');
+        try { new Notification('Engineering OS · ' + (s.project || ''), { body: (k[0] === 'a' ? 'Waiting for your Allow/Deny in Claude Code: ' + parts[2] : (k[0] === 'f' ? parts[0] + ': use Fable for ' + parts[1] + '? Answer in the session.' : parts[0] + ' needs your decision in the session.')).slice(0, 180), tag: k }); } catch (_) { /* not allowed here */ }
+      });
+    }
+    state.seen = keys;
+  }
+  // JSONP-style loaders for the --serve endpoints (same origin, same random path).
+  function load(file, params) {
+    var sc = document.createElement('script');
+    sc.src = file + '?' + params + '&t=' + Date.now();
+    sc.onload = function () { sc.remove(); };
+    sc.onerror = function () { sc.remove(); };
+    document.body.appendChild(sc);
+  }
+  window.__engosDiff = function (d) { if (state.diff && state.diff.file === d.file) { state.diff.text = d.diff || d.error || ''; state.diff.error = !!d.error; render(); } };
+  window.__engosEvents = function (d) { if (state.replay && state.replay.task === d.task) { state.replay.events = d.events || []; state.replay.idx = Math.max(0, state.replay.events.length - 1); render(); } };
+  window.__engosProjects = function (d) { state.projects = d; render(); };
   function poll() {
     var old = document.getElementById('engos-data');
     if (old) old.remove();
@@ -188,7 +297,7 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     if (!el) return;
     var stale = !state.lastAt || Date.now() - state.lastAt > 8000;
     el.className = 'live' + (stale || state.paused ? ' stale' : '');
-    el.lastChild.textContent = state.paused ? 'updates paused' : stale ? 'not updating' : 'live · updated ' + (state.status ? ago(state.status.generated_at) : '') + ' ago';
+    el.lastChild.textContent = state.paused ? T('updates paused') : stale ? T('not updating') : T('live') + ' · ' + T('updated') + ' ' + (state.status ? ago(state.status.generated_at) : '') + ' ' + T('ago');
   }
 
   function allTasks(s) { return (s.tasks || []).concat(s.recent || []); }
@@ -285,6 +394,12 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
       ['started', hms(a.launched_at)],
       ['finished', a.ended_at ? hms(a.ended_at) + ' (' + dur(a.launched_at, a.ended_at) + ')' : 'running for ' + ago(a.launched_at)],
     ]));
+    if (a.model && a.model_actual && fam(a.model_actual) && fam(a.model_actual) !== a.model) h.push('<p class="badge">' + esc(T('Model asked for a different tier than ran')) + '</p>');
+    if (a.usage) {
+      var parts = [];
+      for (var m in (a.usage.by_model || {})) { var u = a.usage.by_model[m]; parts.push(fam(m) + ' ' + ktok(u.input + u.output + u.cache_read + u.cache_write_5m + u.cache_write_1h)); }
+      h.push('<p class="sub">' + esc(T('Cost')) + '</p>' + kv([[T('Cost'), money(a.usage.cost_usd) + ' (' + T('estimate at list prices') + ')'], [T('tokens'), ktok(a.usage.tokens) + (parts.length ? ' · ' + parts.join(', ') : '')]]));
+    }
     h.push('<p class="sub">Files it changed (observed by hooks)</p>' + ul(a.files || []));
     var r = a.report;
     if (a.report_problems && a.report_problems.length) h.push('<p class="sub bad">Report problems: treat its claims as unverified</p>' + ul(a.report_problems));
@@ -330,14 +445,18 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     (t.agents || []).forEach(function (a) { (a.files || []).forEach(function (f) { (who[f] = who[f] || []).push(String(a.type).replace('engos:', '') + (a.step ? ' ' + a.step : '')); }); });
     (t.lead_files || []).forEach(function (f) { (who[f] = who[f] || []).push('lead'); });
     var approved = {}; (t.approved_files || []).forEach(function (f) { approved[f] = true; });
-    return '<div class="files">' + t.files.list.map(function (f) { return '<div><code>' + esc(f) + '</code><span class="muted">' + esc((who[f] || ['changed']).join(', ')) + (approved[f] ? ' · <span class="warn">protected, you allowed it</span>' : '') + '</span></div>'; }).join('') + '</div>' + '<p class="how">+' + t.files.added + ' −' + t.files.deleted + ' lines</p>';
+    return '<div class="files">' + t.files.list.map(function (f) { return '<div><button type="button" class="linkish mono ltr" data-diff="' + esc(f) + '">' + esc(f) + '</button><span class="muted">' + esc((who[f] || ['changed']).join(', ')) + (approved[f] ? ' · <span class="warn">protected, you allowed it</span>' : '') + '</span></div>'; }).join('') + '</div>' + '<p class="how">+' + t.files.added + ' −' + t.files.deleted + ' lines · ' + esc(SERVED ? T('Select a file to see its diff.') : T('Diffs need engos view --serve.')) + '</p>';
   }
   function evidence(t) {
     var rows = [];
     (t.checks || []).forEach(function (c) { rows.push('<div class="row"><span class="mono">engos check ' + esc(c.name) + '</span><span class="' + (c.passed ? 'ok' : 'bad') + '">' + (c.passed ? 'passed' : 'failed') + ' · exit ' + esc(c.exit) + (c.label && c.label !== 'passed' ? ' · ' + esc(c.label) : '') + ' · ' + esc(hhmm(c.at)) + (c.before_last_change ? ' <span class="warn">(before the last change)</span>' : '') + '</span></div>'); });
     (t.reviews || []).forEach(function (r) { rows.push('<div class="row"><span>Review ' + esc(r.step || '') + '</span><span class="' + (r.verdict === 'pass' ? 'ok' : 'bad') + '">' + esc(r.verdict || '?') + (r.refs_ok ? '' : ' · refs unverified') + ' · ' + esc(hhmm(r.at)) + '</span></div>'); });
     if (!rows.length) return '<p class="empty">No checks or reviews recorded yet. Only <span class="mono">engos check &lt;name&gt;</span> counts as evidence.</p>';
-    return '<div class="rows">' + rows.join('') + '</div>';
+    var hist = (t.check_runs || []).slice().reverse().slice(0, 12).map(function (c) {
+      return '<li class="mono">' + esc(hhmm(c.at) + '  ' + c.name + '  ' + (c.passed ? T('passed') : T('failed')) + '  exit ' + c.exit + (c.duration_ms != null ? '  ' + (c.duration_ms / 1000).toFixed(1) + 's' : '') + (c.label && c.label !== 'passed' ? '  ' + c.label : '') + (c.diff ? '  @' + c.diff : '')) + '</li>';
+    }).join('');
+    var flaky = (t.flaky_checks || []).map(function (n) { return '<span class="badge">' + esc(n + ' ' + T('flaky')) + '</span>'; }).join('');
+    return '<div class="rows">' + rows.join('') + '</div>' + (hist ? '<p class="sub">' + esc(T('Check history')) + flaky + '</p><ul class="list">' + hist + '</ul>' : '');
   }
   function waiting(s, t) {
     var items = [];
@@ -348,8 +467,8 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
     });
     if (t && t.needs_human) items.push('<div class="wait-item"><b>' + esc(t.task_id + ' needs your decision') + '</b><div>' + esc(t.needs_human.reason) + '</div><div class="how">' + esc('type in the session: /engos:decide ' + t.task_id + ' <' + t.needs_human.options.join('|') + '>') + '</div></div>');
     if (t && t.deep_pending) items.push('<div class="wait-item"><b>' + esc('Use Fable for ' + t.deep_pending.step + '?') + '</b><div>The lead explains why in the session.</div><div class="how">' + esc('type: /engos:decide ' + t.task_id + ' fable   or   /engos:decide ' + t.task_id + ' no_fable') + '</div></div>');
-    if (!items.length) return '<p class="empty">Nothing is waiting for you.</p>';
-    return items.join('') + '<p class="how">This page is read-only. Approvals and decisions happen only in the Claude Code session.</p>';
+    if (!items.length) return '<p class="empty">' + esc(T('Nothing is waiting for you.')) + '</p>';
+    return items.join('') + '<p class="how">' + esc(T('This page is read-only. Approvals and decisions happen only in the Claude Code session.')) + '</p>';
   }
 
   function matchFilter(e) {
@@ -363,13 +482,125 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
   }
   function feed(s, t) {
     var items = (s.timeline || []).filter(function (e) { return (!t || !e.task_id || e.task_id === t.task_id) && matchFilter(e); }).slice(0, 40);
-    var chips = '<div class="chips" role="group" aria-label="Filter events">' + FILTERS.map(function (f) { return '<button class="btn-s" type="button" data-filter="' + f[0] + '" aria-pressed="' + (state.filter === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div>';
+    var chips = '<div class="chips" role="group" aria-label="Filter events">' + FILTERS.map(function (f) { return '<button class="btn-s" type="button" data-filter="' + f[0] + '" aria-pressed="' + (state.filter === f[0]) + '">' + esc(T(f[1])) + '</button>'; }).join('') + '</div>';
     if (!items.length) return chips + '<p class="empty">Nothing here yet.</p>';
     return chips + '<ul class="feed">' + items.map(function (e) {
       var id = e.at + e.type;
       var data = e.data ? Object.keys(e.data).filter(function (k) { return k !== 'actor'; }).map(function (k) { return k + ': ' + (typeof e.data[k] === 'object' ? JSON.stringify(e.data[k]) : e.data[k]); }).join('\n') : '';
-      return '<li tabindex="0" data-ev="' + esc(id) + '" class="' + (state.open[id] ? 'open' : '') + '" aria-expanded="' + !!state.open[id] + '"><time>' + esc(hhmm(e.at)) + '</time><i class="d ' + esc(e.tone || '') + '"></i><div>' + esc(e.text) + '<div class="who">' + esc(e.who || '') + '</div></div><div class="more">' + esc(hms(e.at) + '  ' + e.type + (data ? '\n' + data : '')) + '</div></li>';
+      return '<li tabindex="0" data-ev="' + esc(id) + '" class="' + (state.open[id] ? 'open' : '') + '" aria-expanded="' + !!state.open[id] + '"><time>' + esc(hhmm(e.at)) + '</time><i class="d ' + esc(e.tone || '') + '"></i><div>' + esc(evText(e)) + '<div class="who">' + esc(e.who || '') + '</div></div><div class="more">' + esc(hms(e.at) + '  ' + e.type + (data ? '\n' + data : '')) + '</div></li>';
     }).join('') + '</ul>';
+  }
+
+  function healthStrip(s) {
+    var h = s.health || {};
+    var parts = [];
+    parts.push('engos <b>' + esc(h.plugin_version || '?') + '</b>');
+    parts.push('Claude Code <b>' + esc(h.claude_code_version ? h.claude_code_version.join ? h.claude_code_version.join('.') : h.claude_code_version : '?') + '</b>');
+    parts.push('mode <b>' + esc((h.modes || []).join(', ') || '–') + '</b>');
+    if (h.paused) parts.push('<span class="warn">paused</span>');
+    (h.models_unavailable || []).forEach(function (m) { parts.push('<span class="warn">' + esc(m) + ' unavailable</span>'); });
+    (h.warnings || []).forEach(function (w) { parts.push('<span class="warn">' + esc(cut(w, 90)) + '</span>'); });
+    (h.read_only_reasons || []).forEach(function (w) { parts.push('<span class="warn">' + esc(cut(w, 90)) + '</span>'); });
+    if (h.session_cost_usd) parts.push(esc(T('Cost')) + ' <b>' + money(h.session_cost_usd) + '</b>');
+    return '<div class="health" aria-label="health">' + parts.join('<span>·</span>') + '</div>';
+  }
+  function costStat(t) {
+    var u = t.usage || {};
+    var split = modelSplit(t), total = 0, k;
+    for (k in split) total += split[k];
+    var bar = '';
+    for (k in split) bar += '<i title="' + esc(k + ' ' + ktok(split[k])) + '" style="width:' + (100 * split[k] / (total || 1)).toFixed(1) + '%;background:' + (MODEL[k] || 'var(--ink-2)') + '"></i>';
+    return '<div class="card stat"><p class="eyebrow">' + esc(T('Cost')) + '</p><div class="v">' + money(u.total_cost_usd || 0) + '</div><div class="s">' + esc(T('lead') + ' ' + money(u.lead ? u.lead.cost_usd : 0) + ' · ' + T('agents') + ' ' + money(u.agents_cost_usd || 0) + ' · ' + ktok(total) + ' ' + T('tokens')) + '</div>' + (total ? '<div class="mbar">' + bar + '</div>' : '') + '</div>';
+  }
+  // One row per agent over the task's time, plus the lead's row with checks, approvals and class changes.
+  function lanes(t, s) {
+    var start = Date.parse(t.opened_at), end = t.closed_at ? Date.parse(t.closed_at) : Date.now();
+    (t.agents || []).forEach(function (a) { var e = a.ended_at ? Date.parse(a.ended_at) : Date.now(); if (e > end) end = e; });
+    if (!(end > start)) end = start + 1000;
+    var W = 900, L = 120, R = 16, rowH = 26, rows = 1 + (t.agents || []).length;
+    var x = function (ts) { return L + (W - L - R) * Math.max(0, Math.min(1, (ts - start) / (end - start))); };
+    var H = 24 + rows * rowH + 18, out = ['<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(T('Timeline')) + '">'];
+    for (var i = 0; i < rows; i++) out.push('<rect class="lane-bg" x="' + L + '" y="' + (16 + i * rowH) + '" width="' + (W - L - R) + '" height="' + (rowH - 8) + '" rx="4"/>');
+    out.push('<text class="lane-label" x="8" y="' + (16 + 13) + '">lead</text>');
+    var evs = (t.check_runs || []).map(function (c) { return { at: c.at, color: c.passed ? 'var(--ok)' : 'var(--bad)', label: c.name + (c.passed ? ' ✓' : ' ✗') }; });
+    (s.timeline || []).filter(function (e) { return e.task_id === t.task_id && /^(approval\.requested|class\.changed|gate\.denied)$/.test(e.type); }).forEach(function (e) {
+      evs.push({ at: e.at, color: e.type === 'gate.denied' ? 'var(--bad)' : 'var(--warn)', label: e.text });
+    });
+    evs.forEach(function (e) { var cx = x(Date.parse(e.at)); out.push('<circle cx="' + cx.toFixed(1) + '" cy="' + (16 + 9) + '" r="5" style="fill:' + e.color + '"><title>' + esc(hhmm(e.at) + ' ' + e.label) + '</title></circle>'); });
+    (t.agents || []).forEach(function (a, j) {
+      var y = 16 + (j + 1) * rowH, a0 = Date.parse(a.launched_at), a1 = a.ended_at ? Date.parse(a.ended_at) : Date.now();
+      var color = MODEL[fam(a.model_actual || a.model)] || 'var(--ink-2)';
+      out.push('<text class="lane-label" x="8" y="' + (y + 13) + '">' + esc(cut(String(a.type).replace('engos:', '') + (a.step ? ' ' + a.step : ''), 15)) + '</text>');
+      out.push('<rect x="' + x(a0).toFixed(1) + '" y="' + (y + 2) + '" width="' + Math.max(3, x(a1) - x(a0)).toFixed(1) + '" height="' + (rowH - 12) + '" rx="3" style="fill:' + color + ';opacity:' + (a.ended_at ? '.85' : '.55') + '"><title>' + esc(a.id + ' ' + (a.model_actual || a.model || '') + ' ' + dur(a.launched_at, a.ended_at) + (a.result ? ' ' + a.result : '')) + '</title></rect>');
+    });
+    out.push('<text class="lane-label" x="' + L + '" y="' + (H - 4) + '">' + esc(hhmm(t.opened_at)) + '</text><text class="lane-label" x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end">' + esc(t.closed_at ? hhmm(t.closed_at) : 'now') + '</text>');
+    out.push('</svg>');
+    return '<div class="card"><p class="eyebrow">' + esc(T('Timeline')) + ' · ' + esc(dur(t.opened_at, t.closed_at)) + '</p><div class="lanes">' + out.join('') + '</div></div>';
+  }
+  // Rebuild what the task looked like after event idx (class, agents, checks, waiting).
+  function replayState(events, idx) {
+    var st = { cls: '', agents: {}, checks: {}, waiting: 0, status: 'open' };
+    for (var i = 0; i <= idx && i < events.length; i++) {
+      var e = events[i], d = e.data || {};
+      if (e.type === 'task.opened') st.cls = d.class || st.cls;
+      if (e.type === 'class.changed') st.cls = d.to || st.cls;
+      if (e.type === 'step.assigned' && d.agent_type) st.agents[d.launch] = { name: d.agent_type + (d.step ? ' ' + d.step : ''), model: d.model_requested, state: 'launched' };
+      if (e.type === 'step.started' && st.agents[d.launch]) st.agents[d.launch].state = 'running';
+      if (e.type === 'step.ended' && st.agents[d.launch]) st.agents[d.launch].state = 'done';
+      if (e.type === 'evidence.recorded') st.checks[d.name] = d.passed ? 'passed' : 'failed (' + (d.label || 'exit ' + d.exit) + ')';
+      if (e.type === 'approval.requested') st.waiting++;
+      if (e.type === 'approval.granted' && st.waiting) st.waiting--;
+      if (e.type === 'responsibility.transferred') st.status = 'needs you';
+      if (e.type === 'decision.recorded') st.status = 'open';
+      if (e.type === 'task.closed') st.status = 'closed';
+    }
+    return st;
+  }
+  function replayView() {
+    var r = state.replay;
+    if (!r.events) return '<div class="card replay"><p class="empty">' + esc(T('Loading…')) + '</p></div>';
+    if (!r.events.length) return '<div class="card replay"><p class="empty">' + esc(T('Nothing here yet.')) + '</p></div>';
+    var e = r.events[r.idx], st = replayState(r.events, r.idx);
+    var agents = Object.keys(st.agents).map(function (k) { var a = st.agents[k]; return '<li>' + esc(k + ' · ' + a.name + ' · ' + (a.model || '') + ' · ' + a.state) + '</li>'; }).join('');
+    var checks = Object.keys(st.checks).map(function (k) { return '<li>' + esc(k + ': ' + st.checks[k]) + '</li>'; }).join('');
+    return '<div class="card replay"><p class="eyebrow">' + esc(T('Replay') + ' · ' + r.task) + '</p>'
+      + '<input type="range" id="replay-range" min="0" max="' + (r.events.length - 1) + '" value="' + r.idx + '" aria-label="' + esc(T('event')) + '">'
+      + '<p class="how">' + esc(T('event') + ' ' + (r.idx + 1) + ' ' + T('of') + ' ' + r.events.length + ' · ' + hms(e.at)) + '</p>'
+      + '<p><b>' + esc(evText(e)) + '</b> <span class="muted mono">' + esc(e.type) + '</span></p>'
+      + kv([[T('class'), st.cls], ['status', st.status], [T('Waiting for you'), String(st.waiting)]])
+      + '<div class="bottom" style="margin-top:12px"><div><p class="sub">' + esc(T('Agents')) + '</p>' + (agents ? '<ul class="list">' + agents + '</ul>' : '<p class="empty">–</p>') + '</div><div><p class="sub">' + esc(T('Checks')) + '</p>' + (checks ? '<ul class="list">' + checks + '</ul>' : '<p class="empty">–</p>') + '</div></div></div>';
+  }
+  function projectsView() {
+    if (!SERVED) return '<div class="card"><p class="empty">' + esc(T('Project list needs engos view --serve.')) + '</p></div>';
+    var d = state.projects;
+    if (!d) return '<div class="card"><p class="empty">' + esc(T('Loading…')) + '</p></div>';
+    if (!d.projects.length) return '<div class="card"><p class="empty">' + esc(T('Nothing here yet.')) + '</p></div>';
+    return '<div class="projects">' + d.projects.map(function (p) {
+      var open = (p.open || []).map(function (t) { return '<li>' + esc(t.task_id + ' · ' + t.class + ' · ' + t.status + ' · ' + cut(t.summary, 60)) + '</li>'; }).join('');
+      return '<div class="card' + (p.waiting ? ' stat alert' : '') + '"><p class="eyebrow">' + esc(p.name) + (p.root === d.here ? ' · ' + T('This project') : '') + '</p>'
+        + (p.missing ? '<p class="empty">.engos/status.json not found</p>' : kv([[T('Open tasks'), String((p.open || []).length)], [T('Waiting for you'), String(p.waiting)], [T('Last closed'), p.last_closed ? p.last_closed.task_id + ' · ' + ago(p.last_closed.closed_at) : '–'], [T('Cost'), money(p.cost_usd)]]) + (open ? '<ul class="list">' + open + '</ul>' : ''))
+        + '<p class="how ltr">' + esc(p.root) + '</p></div>';
+    }).join('') + '</div>';
+  }
+  function diffOverlay() {
+    var d = state.diff;
+    if (!d) return '';
+    var body = d.text == null ? '<p class="empty">' + esc(T('Loading…')) + '</p>' : '<pre class="diff">' + String(d.text).split('\n').map(function (l) { var c = l.indexOf('+++') === 0 || l.indexOf('---') === 0 || l.indexOf('@@') === 0 || l.indexOf('diff ') === 0 ? 'h' : l[0] === '+' ? 'a' : l[0] === '-' ? 'd' : ''; return '<span class="' + c + '">' + esc(l) + '</span>'; }).join('\n') + '</pre>';
+    return '<div class="overlay" role="dialog" aria-modal="true" aria-label="diff"><div class="card"><div class="toolbar"><p class="eyebrow ltr" style="margin:0">' + esc(d.file) + '</p><button class="btn-s" type="button" id="close-diff">' + esc(T('Close')) + '</button></div>' + body + '</div></div>';
+  }
+  // A Markdown summary of one task, saved by the browser. Nothing is sent anywhere.
+  function exportReport(t) {
+    var BT = String.fromCharCode(96);
+    var L = ['# ' + t.task_id + ': ' + t.summary, '', '- Class: ' + t.class + (t.kind ? ' (' + t.kind + ')' : ''), '- State: ' + t.status, '- Opened: ' + t.opened_at + (t.closed_at ? ' · closed: ' + t.closed_at : ''), '- Cost (estimate at list prices): ' + money(t.usage && t.usage.total_cost_usd), ''];
+    if ((t.acceptance || []).length) { L.push('## Acceptance criteria', ''); t.acceptance.forEach(function (a) { L.push('- ' + a.id + ': ' + a.statement); }); L.push(''); }
+    L.push('## Changed files', ''); (t.files.list || []).forEach(function (f) { L.push('- ' + BT + f + BT); }); L.push('', '+' + t.files.added + ' / −' + t.files.deleted + ' lines', '');
+    L.push('## Evidence', ''); (t.checks || []).forEach(function (c) { L.push('- ' + BT + 'engos check ' + c.name + BT + ': ' + (c.passed ? 'passed' : 'failed') + ', exit ' + c.exit + ', ' + c.at); }); (t.reviews || []).forEach(function (r) { L.push('- Review ' + (r.step || '') + ': ' + r.verdict); }); (t.close_evidence || []).forEach(function (e) { L.push('- ' + e); }); L.push('');
+    if ((t.agents || []).length) { L.push('## Agents', ''); t.agents.forEach(function (a) { L.push('- ' + a.id + ' ' + a.type + (a.step ? ' ' + a.step : '') + ': ' + (a.model_actual || a.model || '') + ', ' + a.status + (a.usage ? ', ' + money(a.usage.cost_usd) : '')); }); L.push(''); }
+    L.push('## Class history', ''); (t.history || []).forEach(function (h) { L.push('- ' + h.at + ': ' + (h.from || 'new') + ' → ' + h.to + ' (' + h.trigger + ')'); }); L.push('');
+    if (t.residual_risk) L.push('## Residual risk', '', t.residual_risk, '');
+    L.push('_Generated by the Engineering OS live view._');
+    var blob = new Blob([L.join('\n')], { type: 'text/markdown' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = t.task_id + '.md'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
 
   function render() {
@@ -386,7 +617,17 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
       html.push('<span class="chip mono">' + esc(t.closed_at ? dur(t.opened_at, t.closed_at) : ago(t.opened_at)) + '</span>');
     } else html.push('<span class="title">No open task</span>');
     html.push('</div><span class="live" id="live"><b></b><span></span></span></div>');
-    html.push('<div class="toolbar"><div class="tabs" role="group" aria-label="Tasks">' + tasks.map(function (x) { return '<button class="tab" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' · ' + x.class) + '</button>'; }).join('') + (s.recent || []).map(function (x) { return '<button class="tab closed" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' ✓') + '</button>'; }).join('') + '</div><button class="btn-s" type="button" id="pause" aria-pressed="' + state.paused + '">' + (state.paused ? 'Resume updates' : 'Pause updates') + '</button></div>');
+    html.push(healthStrip(s));
+    html.push('<div class="toolbar"><div class="tabs" role="group" aria-label="Tasks">' + tasks.map(function (x) { return '<button class="tab" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' · ' + x.class) + '</button>'; }).join('') + (s.recent || []).map(function (x) { return '<button class="tab closed" type="button" data-task="' + esc(x.task_id) + '" aria-pressed="' + (x.task_id === state.selected) + '">' + esc(x.task_id + ' ✓') + '</button>'; }).join('') + '</div><div class="tabs">'
+      + (SERVED ? '<button class="btn-s" type="button" id="projects" aria-pressed="' + (state.view === 'projects') + '">' + esc(T('All projects')) + '</button>' : '')
+      + (t && SERVED ? '<button class="btn-s" type="button" id="replay" aria-pressed="' + (state.view === 'replay') + '">' + esc(T('Replay')) + '</button>' : '')
+      + (t ? '<button class="btn-s" type="button" id="export">' + esc(T('Export report')) + '</button>' : '')
+      + (typeof Notification !== 'undefined' ? '<button class="btn-s" type="button" id="notify" aria-pressed="' + state.notify + '">' + esc(state.notify ? T('Notifications on') : T('Notify me')) + '</button>' : '')
+      + '<button class="btn-s" type="button" id="lang">' + (state.lang === 'ar' ? 'English' : 'عربي') + '</button>'
+      + '<button class="btn-s" type="button" id="theme" aria-label="theme">' + (state.theme === 'dark' ? '☀' : state.theme === 'light' ? '◐' : '◑') + '</button>'
+      + '<button class="btn-s" type="button" id="pause" aria-pressed="' + state.paused + '">' + esc(state.paused ? T('Resume updates') : T('Pause updates')) + '</button></div></div>');
+    if (state.view === 'projects') { html.push(projectsView()); return finish(html); }
+    if (state.view === 'replay' && state.replay) { html.push(replayView()); return finish(html); }
 
     if (!t) {
       html.push('<div class="card"><p class="eyebrow">Idle</p><p class="empty">Nothing has run yet.</p></div>');
@@ -398,20 +639,29 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
       var passed = (t.checks || []).filter(function (c) { return c.passed; }).length, failed = (t.checks || []).length - passed;
       var nWait = t.closed_at ? 0 : waitingCount(s, t);
       html.push('<div class="stats">');
-      html.push('<div class="card stat"><p class="eyebrow">Agents</p><div class="v">' + (t.agents || []).length + ' <small>+ lead</small></div><div class="s">' + run + ' running · ' + done + ' done · ' + nodes.filter(function (n) { return nodeState(n) === 'wait'; }).length + ' queued</div></div>');
+      html.push('<div class="card stat"><p class="eyebrow">' + esc(T('Agents')) + '</p><div class="v">' + (t.agents || []).length + ' <small>+ lead</small></div><div class="s">' + run + ' running · ' + done + ' done · ' + nodes.filter(function (n) { return nodeState(n) === 'wait'; }).length + ' queued</div></div>');
       html.push('<div class="card stat"><p class="eyebrow">' + esc(cur ? 'Step ' + cur.id + ' attempts' : 'Attempts') + '</p><div class="v">' + (cur ? cur.failures + ' <small>/ ' + cur.allowed + ' failed</small>' : '0') + '</div><div class="s">' + esc(cur ? cur.status.replace('_', ' ') + ' · ' + (cur.tier || '') : 'no worker step yet') + '</div></div>');
-      html.push('<div class="card stat"><p class="eyebrow">Checks</p><div class="v">' + passed + ' <small>passed</small></div><div class="s">' + failed + ' failed · recorded by engos check</div></div>');
-      html.push('<div class="card stat' + (nWait ? ' alert' : '') + '"><p class="eyebrow">Waiting for you</p><div class="v">' + nWait + '</div><div class="s">' + esc(nWait ? 'select "You" in the graph' : 'nothing') + '</div></div>');
+      html.push('<div class="card stat"><p class="eyebrow">' + esc(T('Checks')) + '</p><div class="v">' + passed + ' <small>' + esc(T('passed')) + '</small></div><div class="s">' + failed + ' failed · recorded by engos check</div></div>');
+      html.push(costStat(t));
+      html.push('<div class="card stat' + (nWait ? ' alert' : '') + '"><p class="eyebrow">' + esc(T('Waiting for you')) + '</p><div class="v">' + nWait + '</div><div class="s">' + esc(nWait ? 'select "You" in the graph' : 'nothing') + '</div></div>');
       html.push('</div>');
-      html.push('<div class="main"><div class="card"><p class="eyebrow">Who is working · select a box for details</p><div class="graph">' + graph(t, s) + '</div>');
+      html.push('<div class="main"><div class="card"><p class="eyebrow">' + esc(T('Who is working · select a box for details')) + '</p><div class="graph">' + graph(t, s) + '</div>');
       html.push('<div class="legend"><span><b style="background:var(--haiku)"></b>Haiku</span><span><b style="background:var(--sonnet)"></b>Sonnet</span><span><b style="background:var(--opus)"></b>Opus</span><span><b style="background:var(--fable)"></b>Fable</span><span>· pulsing = running · dashed = waiting</span></div>');
       html.push(stepsRow(t) + '</div>');
-      html.push('<div class="card detail" aria-live="polite"><p class="eyebrow">Details</p>' + detail(t, s) + '</div></div>');
-      html.push('<div class="three"><div class="card"><p class="eyebrow">What happened · select an event</p>' + feed(s, t) + '</div><div class="card"><p class="eyebrow">Files</p>' + filesCard(t) + '<p class="eyebrow" style="margin-top:16px">Evidence</p>' + evidence(t) + '</div><div class="card"><p class="eyebrow">Waiting for you</p>' + waiting(s, t) + '</div></div>');
+      html.push('<div class="card detail" aria-live="polite"><p class="eyebrow">' + esc(T('Details')) + '</p>' + detail(t, s) + '</div></div>');
+      html.push(lanes(t, s));
+      html.push('<div class="three"><div class="card"><p class="eyebrow">' + esc(T('What happened · select an event')) + '</p>' + feed(s, t) + '</div><div class="card"><p class="eyebrow">' + esc(T('Files')) + '</p>' + filesCard(t) + '<p class="eyebrow" style="margin-top:16px">' + esc(T('Evidence')) + '</p>' + evidence(t) + '</div><div class="card"><p class="eyebrow">' + esc(T('Waiting for you')) + '</p>' + waiting(s, t) + '</div></div>');
     }
-    html.push('<footer>Read-only view of <span class="mono">.engos/</span>. It refreshes by itself and never approves anything.</footer>');
+    return finish(html);
+  }
+  function finish(html) {
+    html.push('<footer>' + esc(T('Read-only view. It refreshes by itself and never approves anything.')) + '</footer>');
+    html.push(diffOverlay());
+    var app = document.getElementById('app');
+    var feedEl = app.querySelector('.feed'), feedY = feedEl ? feedEl.scrollTop : 0;
     var y = window.scrollY;
     app.innerHTML = html.join('');
+    var f2 = app.querySelector('.feed'); if (f2) f2.scrollTop = feedY;
     window.scrollTo(0, y);
     tick();
   }
@@ -420,12 +670,32 @@ footer { color: var(--ink-2); font-size: 12px; text-align: center; }
   function activate(el) {
     if (!el) return;
     if (el.id === 'pause') { state.paused = !state.paused; if (!state.paused) poll(); render(); return; }
-    if (el.hasAttribute('data-task')) { state.selected = el.getAttribute('data-task'); state.sel = null; render(); return; }
+    if (el.id === 'lang') { state.lang = state.lang === 'ar' ? 'en' : 'ar'; store('lang', state.lang); applyLang(); render(); return; }
+    if (el.id === 'theme') { state.theme = state.theme === '' ? 'dark' : state.theme === 'dark' ? 'light' : ''; store('theme', state.theme); applyTheme(); render(); return; }
+    if (el.id === 'notify') {
+      if (state.notify) { state.notify = false; store('notify', ''); render(); return; }
+      Notification.requestPermission().then(function (p) { state.notify = p === 'granted'; store('notify', state.notify ? '1' : ''); render(); });
+      return;
+    }
+    if (el.id === 'projects') { state.view = state.view === 'projects' ? 'task' : 'projects'; if (state.view === 'projects') { state.projects = null; load('projects.js', 'x=1'); } render(); return; }
+    if (el.id === 'replay') {
+      if (state.view === 'replay') { state.view = 'task'; state.replay = null; render(); return; }
+      state.view = 'replay'; state.replay = { task: state.selected, events: null, idx: 0 }; load('events.js', 'task=' + encodeURIComponent(state.selected)); render(); return;
+    }
+    if (el.id === 'export') { var tt = allTasks(state.status).filter(function (x) { return x.task_id === state.selected; })[0]; if (tt) exportReport(tt); return; }
+    if (el.id === 'close-diff') { state.diff = null; render(); return; }
+    if (el.hasAttribute('data-diff')) {
+      if (!SERVED) return;
+      state.diff = { file: el.getAttribute('data-diff'), text: null }; load('diff.js', 'task=' + encodeURIComponent(state.selected) + '&file=' + encodeURIComponent(state.diff.file)); render(); return;
+    }
+    if (el.hasAttribute('data-task')) { state.selected = el.getAttribute('data-task'); state.sel = null; state.view = 'task'; state.replay = null; render(); return; }
     if (el.hasAttribute('data-sel')) { state.sel = el.getAttribute('data-sel'); render(); return; }
     if (el.hasAttribute('data-filter')) { state.filter = el.getAttribute('data-filter'); render(); return; }
     if (el.hasAttribute('data-ev')) { var id = el.getAttribute('data-ev'); state.open[id] = !state.open[id]; render(); }
   }
-  document.addEventListener('click', function (e) { activate(e.target.closest('[data-sel],[data-filter],[data-task],[data-ev],#pause')); });
+  document.addEventListener('click', function (e) { activate(e.target.closest('[data-sel],[data-filter],[data-task],[data-ev],[data-diff],#pause,#lang,#theme,#notify,#projects,#replay,#export,#close-diff')); });
+  document.addEventListener('input', function (e) { if (e.target && e.target.id === 'replay-range' && state.replay) { state.replay.idx = Number(e.target.value); render(); var r = document.getElementById('replay-range'); if (r) r.focus(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.diff) { state.diff = null; render(); } });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     var el = e.target.closest && e.target.closest('[data-sel],[data-ev]');

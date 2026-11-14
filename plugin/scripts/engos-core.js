@@ -39,6 +39,7 @@ function findProjectRoot(start) {
   let dir = path.resolve(start);
   for (;;) {
     try {
+      // Any .engos folder marks a project, so a project whose config.yaml is missing still starts read-only (fails closed).
       if (fs.statSync(path.join(dir, ENGOS_DIR)).isDirectory()) return dir;
     } catch (_) { /* keep walking */ }
     const parent = path.dirname(dir);

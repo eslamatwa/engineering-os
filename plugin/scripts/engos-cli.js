@@ -468,7 +468,7 @@ function cmdCheck(args) {
   else if (sid) task = core.activeTask(root, sid);
   else { const open = core.listTasks(root).filter(core.isOpen); task = open[open.length - 1] || null; }
   if (task && core.isOpen(task)) refreshTask(root, task);
-  const rec = { name: r.name, command: r.command, exit: r.exit, passed: r.passed, timed_out: r.timed_out, duration_ms: r.duration_ms, output_sha256: r.output_sha256, output_lines: r.output_lines, at: r.at };
+  const rec = { diff_hash: task && task.observed ? task.observed.diff_hash || null : null, name: r.name, command: r.command, exit: r.exit, passed: r.passed, timed_out: r.timed_out, duration_ms: r.duration_ms, output_sha256: r.output_sha256, output_lines: r.output_lines, at: r.at };
   if (task) {
     task.evidence = task.evidence || {};
     task.evidence.checks = (task.evidence.checks || []).concat([rec]);
@@ -778,6 +778,15 @@ function serveView(root, args) {
     if (name === '/' + token) { res.writeHead(302, { Location: prefix }); return res.end(); }
     if (!name.startsWith(prefix)) return deny(404);
     const rest = name.slice(prefix.length);
+    const query = new URL(req.url, 'http://127.0.0.1').searchParams;
+    const js = (fn, data) => { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Cross-Origin-Resource-Policy': 'same-origin' }); res.end('window.' + fn + '(' + JSON.stringify(data).replace(/</g, '\\u003c') + ');\n'); };
+    if (rest === 'diff.js' || rest === 'events.js') {
+      const taskId = String(query.get('task') || '');
+      if (!/^TASK-\d+$/.test(taskId)) return deny(400);
+      if (rest === 'events.js') return js('__engosEvents', { task: taskId, events: S.taskEvents(root, taskId) });
+      return js('__engosDiff', Object.assign({ task: taskId }, S.taskFileDiff(root, taskId, String(query.get('file') || ''))));
+    }
+    if (rest === 'projects.js') return js('__engosProjects', { here: root, projects: S.projectsOverview() });
     const file = rest === '' || rest === 'index.html' ? 'index.html' : rest === 'status.js' ? 'status.js' : null;
     if (!file) return deny(404);
     try {

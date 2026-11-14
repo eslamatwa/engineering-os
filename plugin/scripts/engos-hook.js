@@ -68,11 +68,13 @@ function sessionStart(core, input) {
     claude_code_version: check.claude_code_version,
     active_task: prev && prev.active_task ? prev.active_task : null,
     paused: false,
+    transcript_path: input.transcript_path || (prev && prev.transcript_path) || null,
   };
   core.saveSession(root, sessionId, session);
   core.ledger(root, { type: 'session.started', actor: { kind: 'hook' }, session_id: sessionId, source: session.source, mode: session.mode, claude_code_version: session.claude_code_version });
   try { require('./engos-approvals.js').expireStale(root); } catch (_) { /* best effort */ }
   try { require('./engos-status.js').installStatusLine(root); } catch (_) { /* best effort */ }
+  try { require('./engos-status.js').registerProject(root); } catch (_) { /* best effort */ }
 
   const lines = [];
   lines.push('Engineering OS is on (.engos/, ' + session.mode + ' mode).');
@@ -115,8 +117,9 @@ function briefExcerpt(core, root) {
   }
 }
 
-function ensureSession(core, root, sessionId) {
+function ensureSession(core, root, sessionId, transcriptPath) {
   let session = core.loadSession(root, sessionId);
+  if (session && transcriptPath && !session.transcript_path) { session.transcript_path = transcriptPath; core.saveSession(root, sessionId, session); }
   if (!session) {
     const check = core.selfCheck(root);
     session = { session_id: sessionId, started_at: new Date().toISOString(), source: 'lazy_check', mode: check.mode, reasons: check.hard, warnings: check.warn, claude_code_version: check.claude_code_version, active_task: null, paused: false };
@@ -566,6 +569,7 @@ function subagentStop(core, input) {
   }
   a.status = 'ended';
   a.ended_at = now;
+  if (input.agent_transcript_path) { try { a.usage = require('./engos-usage.js').agentUsage(input.agent_transcript_path, ((core.defaults().policies.usage || {}).prices)); } catch (_) { /* best effort */ } }
   a.report_status = chk.report ? chk.report.status : null;
   a.report_problems = chk.problems;
   if (chk.report) {
@@ -760,7 +764,7 @@ function promptExpansion(core, input) {
 function preToolUse(core, input) {
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
-  const session = ensureSession(core, root, sessionIdOf(input));
+  const session = ensureSession(core, root, sessionIdOf(input), input.transcript_path);
   const cfg = projectRules(core, root, session);
   if (WRITE_TOOLS.has(input.tool_name)) return gateWrite(core, root, session, input, cfg);
   if (SHELL_TOOLS.has(input.tool_name)) return gateBash(core, root, session, input, cfg);

@@ -28,6 +28,14 @@ hard_gates:                            # cannot be lowered by human command, pro
   - { id: G-self, when: "bash class self_protect (includes running claude, D34)", require: deny }
   - { id: G-prod, when: "deploy to production", require: approval }   # no deploy detection in v0.1: push, publish and infra commands (terraform, kubectl, helm, cloud CLIs) ask
 
+usage:                                 # live view: tokens and cost from Claude Code's transcripts (estimate at list prices)
+  prices:                              # USD per million tokens; cache writes are input x1.25 (5 min) and x2 (1 h)
+    haiku:  { input: 0.10, output: 0.50, cache_read: 0.01 }    # prompts up to 100K tokens; cache read assumed 0.1x input
+    sonnet: { input: 2.00, output: 10.00, cache_read: 0.10 }
+    opus:   { input: 4.00, output: 20.00, cache_read: 0.20 }
+    fable:  { input: 8.00, output: 40.00, cache_read: 0.20 }
+  verified: "transcript-based cost matched Claude Code's own total_cost_usd to 4 decimals (P16)"
+
 mcp:                                   # D49: MCP tools are external actions (G-delivery) unless listed here
   host_tools_allowed:                  # Claude's own app tools: no prompt, so the gate isn't noisy
     - "mcp__ccd_*"                      # Desktop app: sessions, task list, panes, settings (the app asks for its own changes)

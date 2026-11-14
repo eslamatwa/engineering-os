@@ -1,6 +1,6 @@
 # Live view: ideas for the next version
 
-Proposals for `/engos:view`, written for review (Fable and the owner) before anything is built. None of this is decided. Each idea says what it adds, where its data comes from, and what it risks.
+Proposals for `/engos:view`. **Status (2026-11-14): the owner asked for all ten; all are built (D53).** Ideas 3, 6 and 10 need `engos view --serve`. Each idea below says what it adds, where its data comes from, and what it risks.
 
 ## Where the view stands (v0.1)
 

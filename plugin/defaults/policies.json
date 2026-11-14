@@ -66,6 +66,31 @@
       "require": "approval"
     }
   ],
+  "usage": {
+    "prices": {
+      "haiku": {
+        "input": 0.1,
+        "output": 0.5,
+        "cache_read": 0.01
+      },
+      "sonnet": {
+        "input": 2,
+        "output": 10,
+        "cache_read": 0.1
+      },
+      "opus": {
+        "input": 4,
+        "output": 20,
+        "cache_read": 0.2
+      },
+      "fable": {
+        "input": 8,
+        "output": 40,
+        "cache_read": 0.2
+      }
+    },
+    "verified": "transcript-based cost matched Claude Code's own total_cost_usd to 4 decimals (P16)"
+  },
   "mcp": {
     "host_tools_allowed": [
       "mcp__ccd_*",

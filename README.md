@@ -31,7 +31,7 @@ Rules written in a prompt are requests: the model can skip them, forget them or 
 | **Evidence before done** | `engos check <name>` runs your exact test, lint or build command and records the real exit code. A task won't close without passing checks after the last change, changes inside the plan, a written residual risk, and for high-risk work an independent review and your confirmation. |
 | **Agents that stay in their lane** | Three subagents: a read-only **scout** on Haiku, a **worker** that implements one planned step, and a **validator** that reviews and never edits. The gate checks each agent call uses the right model, allows one writer at a time, and blocks agents from starting agents. Reports are compared with what the hooks actually saw change. |
 | **Escalation with a ceiling** | When a task uses worker steps, a failing step gets three attempts: the routed model, the same model with the exact failure, one tier up. Then it stops and hands you a summary with options. Missing tools don't burn attempts, and neither does a disputed acceptance criterion. |
-| **You can see the agents** | A status line under the prompt, `/engos:status` in chat, and `/engos:view`: an interactive live page with the agent graph, every step, the files each agent changed, its report, the checks, and anything waiting for you. Read-only by design. |
+| **You can see the agents, and what they cost** | A status line under the prompt, `/engos:status` in chat, and `/engos:view`: an interactive live page with the agent graph, a timeline per agent, real tokens and cost per agent and per model (read from Claude Code's own transcripts), each file's diff, replay of a task, check history, a report you can export, all your projects, and anything waiting for you. In English or Arabic. Read-only by design. |
 | **Recommendations that fit your project** | `/engos:recommend` reads your stack and lists the official skills and MCP servers from Anthropic's marketplace that match it, with the install commands. It never installs anything itself. |
 
 ## Does it cost more?
@@ -122,7 +122,7 @@ Tasks, approvals, the ledger and the live view stay local and are gitignored.
 | --- | --- |
 | Using it | [User guide](docs/engos-user-guide.html) · [الدليل بالعربية](docs/engos-user-guide-ar.html) |
 | How it is built | [Architecture page](docs/engos-architecture.html) · [`docs/architecture.md`](docs/architecture.md) · [`docs/hooks.md`](docs/hooks.md) · [`docs/execution-contract.md`](docs/execution-contract.md) |
-| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D52) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
+| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D53) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
 | What was verified | [`docs/phase-results.md`](docs/phase-results.md) · [`docs/benchmark.md`](docs/benchmark.md) · [`docs/spike-results.md`](docs/spike-results.md) · [`tests/acceptance-scenarios.md`](tests/acceptance-scenarios.md) |
 | What's next | [`docs/roadmap.md`](docs/roadmap.md) · [`docs/live-view-ideas.md`](docs/live-view-ideas.md) |
 
@@ -133,7 +133,7 @@ Tasks, approvals, the ledger and the live view stay local and are gitignored.
 | `plugin/` | The plugin: hooks, the `engos` CLI, three subagents, commands, the live view |
 | `config/` | The rules in readable YAML, compiled into `plugin/defaults/` by `tools/build-defaults.js` |
 | `docs/` | Design, decisions, evidence, guides |
-| `tests/unit/` | 93 tests; CI runs them on Windows, macOS and Linux with Node 20 and 24 |
+| `tests/unit/` | 100 tests; CI runs them on Windows, macOS and Linux with Node 20 and 24 |
 | `tools/` | Build, latency measurement, benchmark, icon |
 
 ## Status
