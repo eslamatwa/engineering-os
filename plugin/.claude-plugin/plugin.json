@@ -1,5 +1,6 @@
 {
   "name": "engos",
+  "displayName": "Engineering OS",
   "version": "0.1.0",
   "description": "Engineering OS for Claude Code: classifies work by what it touches, gates risky actions, records human approvals and evidence, and shows what the agents are doing.",
   "author": {
@@ -13,5 +14,7 @@
     "safety",
     "multi-agent"
   ],
-  "icon": ".claude-plugin/icon.png"
+  "icon": ".claude-plugin/icon.png",
+  "homepage": "https://github.com/eslamatwa/engineering-os",
+  "repository": "https://github.com/eslamatwa/engineering-os"
 }
