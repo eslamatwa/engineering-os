@@ -101,7 +101,7 @@ function request(root, o) {
     approval_id: id,
     kind: o.kind,                 // action | file
     tool: o.tool,
-    action: o.action,             // the exact command, or the repo-relative path
+    action: require('./engos-rules.js').redact(o.action), // the command (secrets hidden) or the repo-relative path; the hash uses the original
     command_class: o.cls || null,
     task_id: o.task_id || null,
     session_id: o.session_id,

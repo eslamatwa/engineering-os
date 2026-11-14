@@ -72,7 +72,14 @@ protected_paths:
     - "**/migrations/**"
     - "**/.env*"
     - "**/*secret*"
+    - "**/*secret*/**"
+    - "**/secrets/**"
+    - "**/payments/**"
+    - "**/billing/**"
+    - "**/infra/**"
     - ".github/workflows/**"
+    - ".gitlab-ci.yml"
+    - ".engos/config.yaml"     # settings that decide what counts as proof and what asks (Fable review)
     - "**/terraform/**"
     - "**/k8s/**"
     - "**/Dockerfile*"
@@ -83,6 +90,11 @@ protected_paths:
   never:                      # always denied, cannot be removed by a project
     - ".engos/approvals/**"
     - ".engos/ledger*"
+    - ".engos/tasks/**"         # task state: written only by hooks and the engos CLI
+    - ".engos/sessions/**"
+    - ".engos/status.json"
+    - ".engos/view/**"
+    - ".engos/statusline.js"   # runs in the user's status line
     - ".claude/settings*.json"
     - "**/hooks/hooks.json"
 
@@ -158,12 +170,15 @@ bash_classes:
     commands: [claude, claude-code]          # D34: running claude from Bash is always blocked
     touches_never_paths: true                # any non-read part that names a `never` path
   destructive:
-    prefixes: ["git reset --hard", "git clean", "git push --force", "git push -f", "git branch -D", "git checkout --", "rm -rf", "rm -fr", "rm -r", "Remove-Item -Recurse", "rmdir /s", "del /s", "dropdb"]
+    prefixes: ["git reset --hard", "git clean", "git push --force", "git push -f", "git branch -D", "git checkout --", "git checkout .", "git restore .", "git restore --worktree", "git stash drop", "git stash clear", "rm -rf", "rm -fr", "rm -r", "Remove-Item -Recurse", "rmdir /s", "del /s", "dropdb", "gh repo delete", "kubectl delete", "terraform destroy", "helm uninstall"]
+    patterns: ['^rm\s(?:.*\s)?(?:-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)(?:\s|$)', '^(?:remove-item|ri|del|erase|rd|rmdir)\b.*\s-r(?:ecurse)?\b']   # regexes, any flag order (Fable review)
     sql: ["drop table", "drop database", "truncate table"]
   vcs_remote:
-    prefixes: ["git push", "gh pr create", "gh pr merge", "gh release", "gh repo create", "gh repo delete", "npm publish", "pnpm publish", "yarn publish", "cargo publish", "twine upload", "docker push"]
+    prefixes: ["git push", "gh pr create", "gh pr merge", "gh pr close", "gh pr comment", "gh pr review", "gh pr edit", "gh issue create", "gh issue close", "gh issue comment", "gh issue edit", "gh release", "gh repo create", "gh workflow run", "gh secret", "gh variable", "npm publish", "pnpm publish", "yarn publish", "cargo publish", "twine upload", "docker push", "terraform apply", "kubectl apply", "helm install", "helm upgrade"]
+    ask_if_unknown_subcommand: [git, gh, kubectl, terraform, helm, aws, gcloud, az]   # an unrecognised subcommand of these asks
   network:
     commands: [curl, wget, ssh, scp, sftp, rsync, ftp, nc, ncat, telnet, Invoke-WebRequest, Invoke-RestMethod, iwr, irm]
+    prefixes: ["git pull", "git clone", "git submodule update", "git lfs pull"]
   pkg_install:
     prefixes: ["npm install", "npm i", "npm add", "npm ci", "pnpm add", "pnpm install", "pnpm i", "yarn add", "yarn install", "pip install", "pip3 install", "python -m pip install", "uv add", "uv pip install", "poetry add", "cargo add", "go get", "gem install", "composer require"]
   check:
@@ -171,10 +186,10 @@ bash_classes:
   engos:
     commands: [engos]                        # the CLI is the writer of task state
   vcs_local:
-    prefixes: ["git add", "git commit", "git switch", "git checkout", "git branch", "git stash", "git restore", "git merge", "git rebase", "git tag", "git mv", "git rm", "git init"]
+    prefixes: ["git add", "git commit", "git switch", "git checkout", "git branch", "git stash", "git restore", "git merge", "git rebase", "git tag", "git mv", "git rm", "git init", "git fetch", "git reset", "git cherry-pick", "git revert", "git apply", "git am", "git worktree", "git config", "git notes", "git gc", "git submodule"]
   read:
     commands: [cd, pushd, popd, export, jq, sed, nl, column, md5sum, sha1sum, sha256sum, ls, dir, cat, type, head, tail, less, more, rg, grep, egrep, fgrep, find, fd, wc, pwd, echo, printf, which, where, tree, stat, file, du, df, date, whoami, env, printenv, sort, uniq, cut, diff, cmp, basename, dirname, realpath, readlink, true, false, test, Get-ChildItem, Get-Content, Get-Location, Select-String]
-    prefixes: ["git status", "git log", "git diff", "git show", "git rev-parse", "git ls-files", "git remote -v", "git blame", "git branch --list", "git config --get", "node --version", "node -v", "npm --version", "npm ls", "npm view", "python --version"]
+    prefixes: ["git status", "git log", "git diff", "git show", "git rev-parse", "git ls-files", "git remote -v", "git blame", "git branch --list", "git config --get", "git describe", "git shortlog", "git reflog", "git grep", "git cat-file", "git rev-list", "git ls-tree", "git for-each-ref", "git merge-base", "git name-rev", "git remote", "git version", "git --version", "git help", "gh pr view", "gh pr list", "gh pr diff", "gh pr status", "gh pr checks", "gh issue view", "gh issue list", "gh run view", "gh run list", "gh run watch", "gh repo view", "gh auth status", "gh search", "gh api", "node --version", "node -v", "npm --version", "npm ls", "npm view", "python --version"]
     not_read_if: [output_redirect, "find -delete", "find -exec", "sed -i"]   # these turn a read into unknown
   unknown: everything else
 

@@ -15,7 +15,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Agent|Task|mcp__.*",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|Agent|Task|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -28,7 +28,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Agent|Task|mcp__.*",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|Agent|Task|mcp__.*",
         "hooks": [
           {
             "type": "command",
@@ -52,7 +52,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Agent|Task",
+        "matcher": "Bash|PowerShell|Monitor|Agent|Task",
         "hooks": [
           {
             "type": "command",

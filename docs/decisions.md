@@ -20,12 +20,12 @@ Source review: `docs/reviews/fable-architecture-review.md`.
 
 | D13 | No keyword (lexical) matching in code. The model reads the request in any language and declares sensitivity flags (`auth`, `payments`, `data_migration`, `deployment`, `secrets`, `other`) in its profile. Flags can only raise the class, never lower it. Missed flags are caught by protected paths and observed signals. | 2026-11-13 |
 
-| D14 | Approval method by kind: single external action (push, publish, network, destructive) uses Claude Code's native permission prompt; scope approval for protected paths and decisions on blocked tasks or disputes use a typed `/engos:approve` command. | 2026-11-13 |
-| D15 | Fallback: if the permission mode is bypass or auto, the gate denies and asks for the typed command instead of the native prompt. With no human present (headless, CI) anything needing approval is denied. | 2026-11-13 |
+| D14 | Approval method by kind: single external action (push, publish, network, destructive) uses Claude Code's native permission prompt; scope approval for protected paths and decisions on blocked tasks or disputes use a typed `/engos:approve` command. **Superseded in part by D46.** | 2026-11-13 |
+| D15 | Fallback: if the permission mode is bypass or auto, the gate denies and asks for the typed command instead of the native prompt. With no human present (headless, CI) anything needing approval is denied. **Superseded by D46.** | 2026-11-13 |
 | D16 | An approval shows the exact action the code will run plus context: branch and outgoing commits for a push, file list and task reason for a scope approval, files to be removed for a delete. Never the model's paraphrase. | 2026-11-13 |
-| D17 | Expiry: a single-action approval is single-use, valid 1 hour, and bound to the current HEAD (a new commit voids it). A scope approval lasts until the task closes, max 24 hours. | 2026-11-13 |
+| D17 | Expiry: a single-action approval is single-use, valid 1 hour, and bound to the current HEAD (a new commit voids it). A scope approval lasts until the task closes, max 24 hours. **Superseded for actions by D46.** | 2026-11-13 |
 | D18 | No blanket approvals ("all pushes for this task") in v0.1. | 2026-11-13 |
-| D19 | A rejection is recorded and reported to the model. The identical action (same hash) cannot be requested again in the same task; a changed action can. | 2026-11-13 |
+| D19 | A rejection is recorded and reported to the model. The identical action (same hash) cannot be requested again in the same task; a changed action can. **Superseded by D46: a "No" is not visible to hooks.** | 2026-11-13 |
 
 | D20 | 3 attempts per step: routed tier; same tier with the exact failing output; one tier up. Then the task is `blocked` and the human gets a handover (what was tried, state, options, lead's recommendation). The deep tier (Fable) is never reached automatically; only the human can choose it. | 2026-11-13 |
 | D21 | Failure type: code labels what it can (non-zero check exit = `check_failed`; missing command or dependency = `env_error`); the lead labels the rest from `check_failed`, `env_error`, `scope_violation`, `criterion_disputed`. Only `check_failed` counts as an attempt. Two `env_error`s in one step go to the human. | 2026-11-13 |
@@ -61,6 +61,7 @@ Source review: `docs/reviews/fable-architecture-review.md`.
 | D49 | MCP tools are external actions (G-delivery): each call asks through Claude Code's own prompt, also when paused. Claude's own app tools pass without a prompt so the gate isn't noisy: `mcp__ccd_*`, the built-in browser, inline widgets, and reading the terminal (`config/policies.yaml` mcp). Running or opening a terminal through MCP always asks, because it would bypass the Bash gate; no list can allow it. A project can allow more tools or globs in `mcp_allowlist`. Approved by the owner 2026-11-13. | 2026-11-13 |
 | D50 | Recommendations: `/engos:recommend` (and the end of `/engos:init`) shows the best-fitting skills and MCP servers for the project, grouped (skills and workflows, MCP servers, code intelligence), each with why it fits and the exact install commands. Only plugins from Anthropic's official marketplace (`claude-plugins-official`), read live from the user's Claude Code so nothing removed or unofficial is ever shown; matched by project signals in `config/recommendations.yaml`; sorted by install count; installed ones skipped. Engineering OS never installs: the user runs the commands (Bash can't run `claude` anyway, D34). Approved by the owner 2026-11-13. | 2026-11-13 |
 | D51 | Lines changed in documentation files (`.md`, `.mdx`, `.rst`, `.adoc`, `.txt`; `budgets.trivial_edit.lines_not_counted`) don't count against the trivial line budget; the files still count against the file budget, and protected paths still apply. Reason: the benchmark showed a long docs file turning a docs-only change into a standard task with a plan step, at a cost and with no protection gained. Approved by the owner 2026-11-14. | 2026-11-14 |
+| D52 | Fixes from Fable's project review (`docs/reviews/fable-project-review.md`), approved by the owner: the PowerShell and Monitor tools go through the command gate; unreadable hook input is blocked; failed commands are observed, and `engos check` and `engos task close` look at the repo again first; the classifier sees through subshells, shell keywords, wrappers (`bash -c`, `eval`, `cmd /c`, `powershell -c`, `npx`, `xargs`, `timeout`), full paths and git's global options, asks for unknown `git`/`gh`/infra subcommands, and ignores heredoc bodies; `.engos/tasks`, `sessions`, `status.json`, `view` and `statusline.js` are `never`, `.engos/config.yaml` and more default paths (`secrets/`, `payments/`, `billing/`, `infra/`, `.gitlab-ci.yml`) are high_risk, and a check whose command changed during the task doesn't count; a branch switch, pull or merge re-baselines the task; "last change" is a content hash and clears the close confirmation; commands and MCP inputs are redacted before storage; a model is marked unavailable only on a real "model unavailable" error, for 24 hours; `engos models reset` and `engos agents reset`; a medium or higher review finding needs the user's close confirmation in any class (D25); a docs-only trivial task needs no code checks. | 2026-11-14 |
 
 ### D8 class requirements
 
@@ -68,16 +69,18 @@ Source review: `docs/reviews/fable-architecture-review.md`.
 | --- | --- | --- | --- | --- |
 | question | none | none | lead | none |
 | trivial_edit | ledger line | none | lead | code: diff shown, checks if present |
-| standard | full | required | worker | code first, then validator |
-| high_risk | full | required | worker | as standard + stronger review, scope approval, human acknowledgement at close |
+| standard | full | required | lead, or workers when the plan has worker steps (D47) | code; a validator when the plan has a verify step or a review finds medium+ (D25) |
+| high_risk | full | required | lead or workers (D47) | code + a passing validator review, protected-file approval, human acknowledgement at close |
 
 ### D9 default protected paths
 
 ```yaml
-high_risk: ["**/auth/**", "**/security/**", "**/migrations/**", "**/.env*", "**/*secret*",
-            ".github/workflows/**", "**/terraform/**", "**/k8s/**", "**/Dockerfile*"]
+high_risk: ["**/auth/**", "**/security/**", "**/migrations/**", "**/.env*", "**/*secret*", "**/secrets/**",
+            "**/payments/**", "**/billing/**", "**/infra/**", ".github/workflows/**", ".gitlab-ci.yml",
+            "**/terraform/**", "**/k8s/**", "**/Dockerfile*", ".engos/config.yaml"]   # extended by D52
 standard:  ["package.json", "**/requirements*.txt", "**/*.lock"]
-never:     [".engos/approvals/**", ".engos/ledger*", ".claude/settings*.json", "**/hooks/hooks.json"]
+never:     [".engos/approvals/**", ".engos/ledger*", ".engos/tasks/**", ".engos/sessions/**", ".engos/status.json",
+            ".engos/view/**", ".engos/statusline.js", ".claude/settings*.json", "**/hooks/hooks.json"]   # extended by D52
 ```
 
 ## D7 consequences

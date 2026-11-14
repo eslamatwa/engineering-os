@@ -139,18 +139,61 @@ function matchParen(s, openIdx) {
   return s.length;
 }
 
-// Strip leading env assignments and wrappers; return { text, first }.
+// Strip subshell brackets, shell keywords, env assignments and wrappers; reduce the program to its basename
+// and drop git's global options, so "(cd x && /usr/bin/git -C . push)" reads as "git push". Returns { text, first }.
 function normalizePart(part) {
   let t = String(part).trim();
   for (;;) {
     const before = t;
+    t = t.replace(/^[({!]+\s*/, '').replace(/\s*[)}]+\s*$/, '');
+    t = t.replace(/^(?:then|do|else|elif|if|while|until)\s+/, '');
     t = t.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+/, '');
-    t = t.replace(/^(?:sudo|env|command|time|nohup|exec)\s+(?:-\S+\s+)*/, '');
+    t = t.replace(/^(?:sudo|env|command|time|nohup|exec|nice|stdbuf|ionice|npx|bunx)\s+(?:-\S+\s+)*/, '');
+    t = t.replace(/^(?:pnpm|yarn)\s+dlx\s+(?:-\S+\s+)*/, '');
+    t = t.replace(/^timeout\s+(?:-\S+\s+)*\S+\s+/, '');
+    t = t.replace(/^xargs(?:\s+(?:-[nILPdsE]\s*\S+|-\S+))*\s+/, '');
     if (t === before) break;
   }
-  const firstRaw = (t.match(/^("[^"]+"|'[^']+'|\S+)/) || [''])[0].replace(/^["']|["']$/g, '');
+  const m = t.match(/^("[^"]+"|'[^']+'|\S+)/);
+  const firstRaw = m ? m[0].replace(/^["']|["']$/g, '') : '';
   const first = firstRaw.replace(/\\/g, '/').split('/').pop().replace(/\.(exe|cmd|bat|ps1)$/i, '');
+  if (m) t = first + t.slice(m[0].length);
+  if (/^git(\s|$)/i.test(t)) t = t.replace(/^git((?:\s+(?:-C\s+(?:"[^"]*"|'[^']*'|\S+)|-c\s+\S+|--no-pager|-P|--paginate|--bare|--no-replace-objects|--literal-pathspecs|--git-dir(?:=\S+|\s+\S+)|--work-tree(?:=\S+|\s+\S+)))+)(?=\s|$)/i, 'git');
   return { text: t, first };
+}
+
+// "bash -c '…'", "sh -c", "cmd /c", "powershell -Command", "eval": the real command is the quoted script.
+function innerScript(text) {
+  const pats = [
+    /^(?:bash|sh|zsh|dash|ksh)\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*c[a-zA-Z]*\s+([\s\S]+)$/,
+    /^cmd\s+\/[cCkK]\s+([\s\S]+)$/,
+    /^(?:powershell|pwsh)\s+(?:-\S+\s+)*?(?:-c|-command|-encodedcommand|-ec)\s+([\s\S]+)$/i,
+    /^eval\s+([\s\S]+)$/,
+  ];
+  for (const p of pats) {
+    const m = p.exec(text);
+    if (!m) continue;
+    let inner = m[1].trim();
+    if (/^-(?:encodedcommand|ec)\b/i.test(text.split(/\s+/).find((w) => /^-e/i.test(w)) || '')) return '__encoded__';
+    if ((inner.startsWith('"') && inner.endsWith('"')) || (inner.startsWith("'") && inner.endsWith("'"))) inner = inner.slice(1, -1);
+    return inner;
+  }
+  return null;
+}
+
+// Heredoc bodies are data, not commands: drop them before splitting (a commit message that mentions
+// "rm -rf" or a protected path is not a command).
+function stripHeredocs(cmd) {
+  const lines = String(cmd || '').split('\n');
+  const out = [];
+  let delim = null;
+  for (const line of lines) {
+    if (delim !== null) { if (line.trim() === delim) delim = null; continue; }
+    out.push(line);
+    const m = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/.exec(line);
+    if (m) delim = m[2];
+  }
+  return out.join('\n');
 }
 
 function hasOutputRedirect(text) {
@@ -179,16 +222,26 @@ function classifyPart(part, bashClasses, neverPatterns) {
   const lower = text.toLowerCase();
   const inList = (list) => (list || []).some((c) => String(c).toLowerCase() === firstL);
 
+  const inner = innerScript(text);
+  if (inner === '__encoded__') return 'self_protect'; // an encoded script can't be checked
+  if (inner !== null) return classifyCommand(inner, bc, neverPatterns).cls;
+
   if (inList(bc.self_protect && bc.self_protect.commands)) return 'self_protect';
+  if (((bc.destructive && bc.destructive.patterns) || []).some((p) => new RegExp(p, 'i').test(text))) return 'destructive';
   if (startsWithPrefix(text, bc.destructive && bc.destructive.prefixes)) return 'destructive';
   if ((bc.destructive && bc.destructive.sql || []).some((q) => lower.includes(String(q).toLowerCase()))) return 'destructive';
   if (startsWithPrefix(text, bc.vcs_remote && bc.vcs_remote.prefixes)) return 'vcs_remote';
-  if (inList(bc.network && bc.network.commands)) return 'network';
+  if (inList(bc.network && bc.network.commands) || startsWithPrefix(text, bc.network && bc.network.prefixes)) return 'network';
+  if (/^gh\s+api\b/i.test(text) && /\s(?:-X|--method)\s*(?!GET\b)[A-Za-z]+|\s-[fF]\s|\s--(?:field|raw-field|input)\b/i.test(text)) return 'vcs_remote';
   if (startsWithPrefix(text, bc.pkg_install && bc.pkg_install.prefixes)) return 'pkg_install';
 
   // read candidates may still write
   const readish = inList(bc.read && bc.read.commands) || startsWithPrefix(text, bc.read && bc.read.prefixes);
-  const writes = hasOutputRedirect(text) || /\bsed\s+(?:-\S*\s+)*-i/.test(text) || /^find\b.*\s-(delete|exec|execdir|ok)\b/.test(text);
+  const writes = hasOutputRedirect(text)
+    || /^sed\b.*\s(?:-[a-zA-Z]*i\S*|--in-place\S*)/.test(text)
+    || /^find\b.*\s-(delete|exec|execdir|ok|okdir|fprint\w*|fls)\b/.test(text)
+    || /^sort\b.*\s(?:-o|--output)\b/.test(text)
+    || /^uniq(?:\s+-\S+)*\s+[^-\s]\S*\s+[^-\s]\S*/.test(text);
 
   if (!readish || writes) {
     if (bc.self_protect && bc.self_protect.touches_never_paths && mentionsNeverPath(text, neverPatterns)) return 'self_protect';
@@ -197,6 +250,7 @@ function classifyPart(part, bashClasses, neverPatterns) {
   if (inList(bc.engos && bc.engos.commands)) return 'engos';
   if (startsWithPrefix(text, bc.vcs_local && bc.vcs_local.prefixes)) return 'vcs_local';
   if (readish && !writes) return 'read';
+  if (inList(bc.vcs_remote && bc.vcs_remote.ask_if_unknown_subcommand)) return 'vcs_remote'; // e.g. an unlisted git or gh subcommand
   return 'unknown';
 }
 
@@ -210,7 +264,7 @@ function mentionsNeverPath(text, neverPatterns) {
 }
 
 function classifyCommand(cmd, bashClasses, neverPatterns) {
-  const parts = splitCommand(cmd);
+  const parts = splitCommand(stripHeredocs(cmd));
   const classified = parts.map((p) => ({ part: p, cls: classifyPart(p, bashClasses, neverPatterns) }));
   let worst = 'read';
   for (const c of classified) if (SEVERITY[c.cls] > SEVERITY[worst]) worst = c.cls;
@@ -289,6 +343,30 @@ function exceedsTrivial(observed, b) {
 }
 
 // What a class needs before writes may continue.
+// Hide secrets before a command or tool input is written to .engos/ (approvals, ledger, status, live view).
+// Matches Authorization headers, tokens and passwords given as flags or KEY=value, URLs with credentials,
+// and well-known key formats. The approval hash is still computed from the original text.
+const SECRET_PATTERNS = [
+  [/((?:authorization|proxy-authorization)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|(?:bearer|basic|token)\s+\S+|\S+)/gi, '$1[redacted]'],
+  [/(\b(?:bearer|basic)\s+)[A-Za-z0-9._~+\/=-]{8,}/gi, '$1[redacted]'],
+  [/(-{1,2}(?:password|passwd|pass|token|secret|api-?key|access-?key|auth|key)(?:\s+|=))(?:"[^"]*"|'[^']*'|\S+)/gi, '$1[redacted]'],
+  [/(\b[A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIALS?)[A-Za-z0-9_]*\s*[=:]\s*)(?:"[^"]*"|'[^']*'|\S+)/gi, '$1[redacted]'],
+  [/("(?:password|passwd|token|secret|api_?key|access_?key|authorization)"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"'],
+  [/(\w+:\/\/)[^\s:@\/]+:[^\s@\/]+@/g, '$1[redacted]@'],
+  [/((?:^|\s)(?:-u|--user)(?:\s+|=))[^\s:]+:\S+/g, '$1[redacted]'],
+  [/\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{20,}/g, '[redacted]'],
+  [/\bsk-[A-Za-z0-9_-]{16,}/g, '[redacted]'],
+  [/\bxox[abprs]-[A-Za-z0-9-]{10,}/g, '[redacted]'],
+  [/\bAKIA[0-9A-Z]{16}\b/g, '[redacted]'],
+  [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/g, '[redacted]'],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '[redacted private key]'],
+];
+function redact(text) {
+  let t = String(text == null ? '' : text);
+  for (const [re, rep] of SECRET_PATTERNS) t = t.replace(re, rep);
+  return t;
+}
+
 // D49: is this MCP tool allowed without an approval? Host tools by default, plus the project's mcp_allowlist.
 function mcpAllowed(name, policies, config) {
   const m = (policies && policies.mcp) || {};
@@ -301,7 +379,8 @@ function mcpAllowed(name, policies, config) {
 function mcpAction(name, input) {
   let args = '';
   try { args = JSON.stringify(input || {}); } catch (_) { args = '{}'; }
-  return name + ' ' + (args.length > 400 ? args.slice(0, 399) + '…' : args);
+  const a = redact(args);
+  return name + ' ' + (a.length > 400 ? a.slice(0, 399) + '…' : a);
 }
 
 function missingRequirements(profile) {
@@ -315,6 +394,7 @@ function missingRequirements(profile) {
 }
 
 module.exports = {
+  redact,
   mcpAllowed,
   mcpAction,
   CLASSES,
@@ -326,6 +406,8 @@ module.exports = {
   protectedLevel,
   effectiveProtected,
   splitCommand,
+  stripHeredocs,
+  innerScript,
   normalizePart,
   hasOutputRedirect,
   classifyPart,

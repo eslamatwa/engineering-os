@@ -178,13 +178,13 @@ test('A5: writes outside the plan scope are blocked; scope widens at most twice 
   const t0 = active(dir); t0.effective.class = 'standard'; core.saveProfile(dir, t0);
 
   assert.ok(edit(dir, 'src/session/refresh.ts', 'export function refresh() { return 1; }\n').allowed);
-  const out = edit(dir, 'src/billing/x.ts', 'export const price = 2;\n');
+  const out = edit(dir, 'src/pricing/x.ts', 'export const price = 2;\n');
   assert.strictEqual(out.allowed, false);
   assert.match(out.pre.stderr, /outside the plan's write scope/);
 
   assert.strictEqual(cli(dir, ['scope', 'amend', '--add', 'src/auth/**', '--reason', 'need it']).code, 1, 'protected path refused');
-  assert.strictEqual(cli(dir, ['scope', 'amend', '--add', 'src/billing/**', '--reason', 'price lives here']).code, 0);
-  assert.ok(edit(dir, 'src/billing/x.ts', 'export const price = 2;\n').allowed);
+  assert.strictEqual(cli(dir, ['scope', 'amend', '--add', 'src/pricing/**', '--reason', 'price lives here']).code, 0);
+  assert.ok(edit(dir, 'src/pricing/x.ts', 'export const price = 2;\n').allowed);
   assert.strictEqual(cli(dir, ['scope', 'amend', '--add', 'docs/**', '--reason', 'docs']).code, 0);
   const third = cli(dir, ['scope', 'amend', '--add', 'lib/**', '--reason', 'more']);
   assert.strictEqual(third.code, 1);

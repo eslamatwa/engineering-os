@@ -119,14 +119,35 @@ function rolesFor(task, D) {
 // Models and availability (D32)
 // ---------------------------------------------------------------------------
 function unavailableFile(root) { return path.join(root, '.engos', 'sessions', 'models.json'); }
+// A model marked unavailable stays so for 24 hours, then is tried again; `engos models reset` clears it now.
+const UNAVAILABLE_TTL_MS = 24 * 60 * 60 * 1000;
 function loadUnavailable(root) {
-  try { return JSON.parse(fs.readFileSync(unavailableFile(root), 'utf8')).unavailable || []; } catch (_) { return []; }
+  let j;
+  try { j = JSON.parse(fs.readFileSync(unavailableFile(root), 'utf8')); } catch (_) { return []; }
+  const marks = j.marks || {};
+  return Object.keys(marks).filter((m) => Date.now() - Date.parse(marks[m]) < UNAVAILABLE_TTL_MS);
 }
 function markUnavailable(root, model) {
-  const list = Array.from(new Set(loadUnavailable(root).concat([model])));
+  let j = {};
+  try { j = JSON.parse(fs.readFileSync(unavailableFile(root), 'utf8')); } catch (_) { j = {}; }
+  const marks = j.marks || {};
+  marks[model] = new Date().toISOString();
   fs.mkdirSync(path.dirname(unavailableFile(root)), { recursive: true });
-  fs.writeFileSync(unavailableFile(root), JSON.stringify({ unavailable: list, updated_at: new Date().toISOString() }, null, 2));
-  return list;
+  fs.writeFileSync(unavailableFile(root), JSON.stringify({ marks }, null, 2));
+  return loadUnavailable(root);
+}
+function resetUnavailable(root) {
+  try { fs.unlinkSync(unavailableFile(root)); return true; } catch (_) { return false; }
+}
+// Only an error that says the model itself can't be used marks it unavailable (not overloads or interrupts).
+const MODEL_UNAVAILABLE_RE = /(?:model[^.\n]{0,80}(?:not (?:found|available|supported|allowed|enabled)|unavailable|does(?:n't| not) exist|invalid|no access|not included))|(?:(?:not (?:found|available|supported)|unavailable|unsupported|invalid|unknown)[^.\n]{0,30}model)|not entitled|not included in your plan/i;
+
+// Launches still marked running after the user denied or interrupted them: mark abandoned so a new worker can start.
+function resetLaunches(task) {
+  let n = 0;
+  for (const a of agentsOf(task)) if (a.status === 'launched' || a.status === 'running') { a.status = 'abandoned'; a.ended_at = new Date().toISOString(); n++; }
+  for (const id of Object.keys(task.step_state || {})) if (task.step_state[id].status === 'running') task.step_state[id].status = 'pending';
+  return n;
 }
 
 // models = { available: [...], unavailable: [...] }
@@ -221,7 +242,7 @@ function agentDecision(task, ti, D, models, now) {
   }
   if (role === 'worker') {
     const busy = runningWorkers(task, now);
-    if (busy.length) return { deny: 'G-one-writer', reason: 'a worker is already running step ' + busy[0].step + ' (' + busy[0].id + '). Only one writer at a time (D24); wait for its report. Read-only agents (scout, validator, Explore) can run in parallel.' };
+    if (busy.length) return { deny: 'G-one-writer', reason: 'a worker is already running step ' + busy[0].step + ' (' + busy[0].id + '). Only one writer at a time (D24); wait for its report. Read-only agents (scout, validator, Explore) can run in parallel. If that worker was denied or interrupted and is not running, run `engos agents reset`.' };
   }
   const exp = expectedFor(task, step, D, models);
   if (exp.blocked) return { deny: 'G-attempts', reason: 'step ' + step.id + ' has used its ' + exp.failures + ' attempts. ' + task.task_id + ' waits for the user\'s decision (/engos:decide ' + task.task_id + ' retry|fable|stop).' };
@@ -375,7 +396,7 @@ function checkReport(root, task, a, text, yaml) {
   if (r.status !== undefined && !REPORT_STATUSES.includes(r.status)) out.problems.push('status must be one of ' + REPORT_STATUSES.join(', '));
   for (const f of ['inputs_read', 'outputs_changed', 'evidence', 'limitations']) if (r[f] !== undefined && !Array.isArray(r[f])) out.problems.push('`' + f + '` must be a list');
 
-  const claimed = asList(r.outputs_changed).map((x) => String(x).replace(/\\/g, '/'));
+  const claimed = asList(r.outputs_changed).map((x) => String(x).replace(/\\/g, '/').replace(/^\.\//, ''));
   if (Array.isArray(r.outputs_changed) && !sameSet(claimed, a.files || [])) {
     out.problems.push('outputs_changed lists [' + claimed.join(', ') + '] but Engineering OS observed [' + (a.files || []).join(', ') + ']. Report exactly the files you changed');
     out.facts.mismatch = { claimed, observed: a.files || [] };
@@ -481,7 +502,7 @@ function disputeSettler(task, opts, D) {
 module.exports = {
   TIERS, ENGOS_TYPES, SEVERITY_RANK, modelAlias, upTier, readOnlyTask, roleOfType,
   assurance, stepKind, routeStep, planSteps, rolesFor,
-  loadUnavailable, markUnavailable, modelFor,
+  loadUnavailable, markUnavailable, resetUnavailable, MODEL_UNAVAILABLE_RE, resetLaunches, modelFor,
   agentsOf, stepState, launchesFor, failuresFor, isRunning, runningWorkers, expectedFor, stepIdFrom,
   agentDecision, recordLaunch, findByAgentId, bindStart,
   roleCard, reportTemplate, startContext,

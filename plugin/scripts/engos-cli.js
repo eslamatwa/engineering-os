@@ -24,6 +24,10 @@ const DENY_RULES = [ // Edit(...) rules cover every file-editing tool; Write(...
   'Edit(./.engos/approvals/**)',
   'Edit(./.engos/ledger.jsonl)',
   'Edit(./.engos/sessions/**)',
+  'Edit(./.engos/tasks/**)',
+  'Edit(./.engos/status.json)',
+  'Edit(./.engos/view/**)',
+  'Edit(./.engos/statusline.js)',
 ];
 
 function parseArgs(argv) {
@@ -297,10 +301,12 @@ function cmdTask(args) {
     const profile = core.loadProfile(root, id);
     if (!profile) fail('no task ' + id);
     if (profile.status === 'closed') fail(id + ' is already closed');
+    const unseen = refreshTask(root, profile);
+    if (unseen.length) fail(id + ': protected files changed without approval (' + unseen.map((h) => h.path).join(', ') + '). The user decides: /engos:decide ' + id + ' accept|stop');
     const E = require(path.join(__dirname, 'engos-evidence.js'));
     const cfg = core.loadProjectConfig(root);
     if (args['residual-risk'] && args['residual-risk'] !== true) profile.residual_risk = String(args['residual-risk']);
-    const ev = E.evaluateClose(profile, cfg.ok ? cfg.config : {}, {});
+    const ev = E.evaluateClose(profile, cfg.ok ? cfg.config : {}, { baseline: core.loadBaseline(root, id) });
     const base = core.loadBaseline(root, id);
     const stat = E.diffStat(root, base.git_head);
     console.log(id + ' (' + ev.cls + '): ' + ((profile.request && profile.request.summary) || ''));
@@ -310,7 +316,7 @@ function cmdTask(args) {
     if (ev.met.length) console.log('Evidence: ' + ev.met.join('; '));
     for (const n of ev.notYet) console.log('Not enforced yet: ' + n);
     if (!ev.ok) {
-      if (ev.cls === 'high_risk' && !profile.close_acknowledged && ev.missing.length === 1 && ev.missing[0].startsWith('the user')) {
+      if (!profile.close_acknowledged && ev.missing.length && ev.missing.every((m) => m.startsWith('the user'))) {
         profile.awaiting_close_ack = true;
         profile.close_requested_at = new Date().toISOString();
       }
@@ -391,6 +397,8 @@ function cmdPlan(args) {
   if (task.status === 'needs_human') fail(task.task_id + ' is waiting for a human decision.');
   const write = list(args['scope-write']);
   if (!write.length) fail('plan needs --scope-write with at least one path or glob');
+  const tooBroad = write.filter((g) => /^(?:\.\/)?(?:\*\*?|\*\*\/\*|\.)?\/?$/.test(String(g).trim()));
+  if (tooBroad.length) fail('--scope-write "' + tooBroad.join(',') + '" covers the whole repo. List the folders or files the change touches, e.g. "src/session/**,tests/session/**".');
   if (args.kind !== undefined || args.sensitivity !== undefined || args.reversibility !== undefined) applyProfile(root, task, args);
   else if (!task.declared || !task.declared.kind) fail('plan set needs --kind too (bugfix, feature, refactor, docs, tests, debugging, migration, security_review, architecture, analysis)');
   const prev = (task.planned && task.planned.scope && task.planned.scope.write) || [];
@@ -415,6 +423,35 @@ function criteria(v) {
   return String(v).split(';').map((x) => x.trim()).filter(Boolean).map((statement, i) => ({ id: 'AC-' + (i + 1), statement }));
 }
 
+// Look at the repo again before a check or a close: a change a hook didn't see (a failed command, a script
+// run outside Claude) still moves "last change", and a protected file changed without approval stops the task.
+function refreshTask(root, task) {
+  const observeLib = require(path.join(__dirname, 'engos-observe.js'));
+  const prot = protectedPaths(root);
+  const base = core.loadBaseline(root, task.task_id);
+  const prev = task.observed || {};
+  const before = new Set((prev.protected_hits || []).map((h) => h.path));
+  const obs = observeLib.mergeObserved(task.observed_frozen, observeLib.observe(root, base, prot, { withSnapshot: true }));
+  if (prev.diff_hash !== undefined && prev.diff_hash !== obs.diff_hash) {
+    task.last_change_at = new Date().toISOString();
+    task.close_acknowledged = null;
+    task.awaiting_close_ack = false;
+    core.ledger(root, { type: 'change.detected_at_check', actor: { kind: 'cli' }, task_id: task.task_id });
+  }
+  task.observed = Object.assign(prev, obs);
+  const unseen = (obs.protected_hits || []).filter((h) => !before.has(h.path) && (h.level === 'never' || h.level === 'high_risk') && !(task.approved_files || {})[h.path]);
+  if (unseen.length && task.status !== 'needs_human') {
+    task.status = 'needs_human';
+    task.needs_human_reason = 'protected files changed without approval: ' + unseen.map((h) => h.path).join(', ');
+    task.needs_human_at = new Date().toISOString();
+    task.decision_options = ['accept', 'stop'];
+    core.ledger(root, { type: 'violation.detected', actor: { kind: 'cli' }, task_id: task.task_id, paths: unseen.map((h) => h.path), via: 'refresh' });
+  }
+  core.ratchet(root, task, 'refresh', prot);
+  core.saveProfile(root, task);
+  return unseen;
+}
+
 function cmdCheck(args) {
   const name = args._[1];
   if (!name) fail('use: engos check <name>   (names come from checks: in .engos/config.yaml)');
@@ -430,6 +467,7 @@ function cmdCheck(args) {
   if (args.task && args.task !== true) task = core.loadProfile(root, String(args.task));
   else if (sid) task = core.activeTask(root, sid);
   else { const open = core.listTasks(root).filter(core.isOpen); task = open[open.length - 1] || null; }
+  if (task && core.isOpen(task)) refreshTask(root, task);
   const rec = { name: r.name, command: r.command, exit: r.exit, passed: r.passed, timed_out: r.timed_out, duration_ms: r.duration_ms, output_sha256: r.output_sha256, output_lines: r.output_lines, at: r.at };
   if (task) {
     task.evidence = task.evidence || {};
@@ -842,12 +880,28 @@ function main() {
     case 'status': return cmdStatus(args);
     case 'view': return cmdView(args);
     case 'recommend': return cmdRecommend(args);
+    case 'models': {
+      if (args._[1] !== 'reset') fail('use: engos models reset   (clears models marked unavailable)');
+      const root = requireRoot();
+      console.log(O.resetUnavailable(root) ? 'Cleared the models marked unavailable.' : 'No models were marked unavailable.');
+      core.ledger(root, { type: 'models.reset', actor: { kind: 'cli' } });
+      return;
+    }
+    case 'agents': {
+      if (args._[1] !== 'reset') fail('use: engos agents reset [--task ID]   (frees agents left running after a denial or interrupt)');
+      const root = requireRoot();
+      const task = targetTask(root, args);
+      const n = O.resetLaunches(task);
+      core.saveProfile(root, task);
+      core.ledger(root, { type: 'agents.reset', actor: { kind: 'cli' }, task_id: task.task_id, count: n });
+      return console.log(task.task_id + ': ' + n + ' agent launch(es) marked abandoned. A new worker can start.');
+    }
     case 'version':
     case '--version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
     case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open|--serve]               write the live view page and print its address\n  recommend [--json] [--all]          official plugins (skills, MCP servers) that fit this project, with install commands\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open|--serve]               write the live view page and print its address\n  models reset | agents reset         clear models marked unavailable | free agents left running\n  recommend [--json] [--all]          official plugins (skills, MCP servers) that fit this project, with install commands\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

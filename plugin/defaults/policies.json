@@ -36,7 +36,7 @@
         "external_actions_without_approval"
       ]
     },
-    "default_mode": "read_only",
+    "default_mode": "question",
     "requires_git_for_write": true
   },
   "hard_gates": [
@@ -63,7 +63,7 @@
     {
       "id": "G-prod",
       "when": "deploy to production",
-      "require": "deny"
+      "require": "approval"
     }
   ],
   "mcp": {
@@ -152,10 +152,10 @@
     ],
     "facts_need_source": true,
     "assumptions_marked": true,
-    "secret_found_in_diff_or_state": "needs_human"
+    "secrets_in_commands": "redacted_before_storage"
   },
   "state_files": {
-    "changed_only_by": "engos_cli",
+    "changed_only_by": "engos_cli_and_hooks",
     "committed": [
       ".engos/config.yaml",
       ".engos/BRIEF.md",

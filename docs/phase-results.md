@@ -360,3 +360,28 @@ Gate latency: recent CI showed the write gate up to 79 ms over Node start-up on 
 - Docs reviewed for describing the product as built: removed "not built yet" banners from both guides, removed skills that were never built from the architecture page, named the product "Engineering OS" (D31), added the recommendations step to the guides.
 - Live view server: a web page in the same browser could load `status.js` with a script tag and read the project state. Now served only under a random path per run, with Host (DNS rebinding) and `Sec-Fetch-Site` checks, CSP and no-referrer. Unit test added. 79 of 79 unit tests; `claude plugin validate --strict` passes for the plugin and the marketplace.
 - `docs/live-view-ideas.md`: proposals for the next live view, for review.
+
+### Phase 7: fixes from Fable's project review (D52)
+
+Review: `docs/reviews/fable-project-review.md`. One test per finding in `tests/unit/review-fixes.test.js` (14 tests). All unit tests: 93 of 93. Gate overhead locally: Write 13 ms, Bash 22 ms.
+
+| Finding | Fix |
+| --- | --- |
+| 1 PowerShell tool not gated | PowerShell and Monitor go through the command gate and the observer |
+| 2 failed commands not observed | PostToolUseFailure on shell tools observes; `engos check` and `engos task close` look again first |
+| 3 classifier gaps | Subshells, shell keywords, wrappers, full paths, git global options, `rm` flag order, `gh api` methods, unknown git/gh/infra subcommands ask; `sed -Ei`, `--in-place`, `sort -o`, `uniq a b` aren't read |
+| 4 unreadable input fails open | Blocked |
+| 5 `.engos/` state editable | tasks, sessions, status, view, statusline `never`; config.yaml high_risk; check command bound to the task |
+| 6 branch switches raise false violations | Re-baseline on checkout, switch, pull, merge, rebase, cherry-pick, reset, am |
+| 7 stale evidence | "Last change" is a content hash of the diff |
+| 8 close confirmation outlives the diff | Cleared on any later change |
+| 9 typed commands unverified | Verified live (P15): `prompt`, `command_name`, `command_args`; fallback added; tasks with no session refuse decisions |
+| 11 secrets in .engos | Redacted before storage in approvals, ledger, task summaries, status and MCP actions |
+| 12 model marked unavailable on any error | Only a real "model unavailable" error, for 24 hours; `engos models reset` |
+| 13 stuck writer lock | `engos agents reset`; the refusal says so |
+| Heredocs split line by line | Heredoc bodies are dropped before classifying |
+| D25 not enforced | A medium+ finding needs the user's close confirmation in any class |
+| Small items | Default protected paths extended; `--scope-write "**"` refused; docs-only trivial tasks need no code checks; `./` in report paths; `decide.md` lists every option; close guidance in the session summary; version 0.1.0 |
+| Docs | README, architecture, hooks, contract, policies and security corrected to match the code; superseded decisions marked |
+
+Left open, by design or for later: a "No" in Claude Code's prompt is not visible to hooks; escalation applies only when worker steps are planned (D47); sensitivity flags are declared by the model; subagent attribution is by launch order; the status rebuild reads every task profile (fine for hundreds of tasks); paused sessions are not observed; paths outside the repo and symlinks are not gated; no file locking; lowering a class ignores the floors that held it at that time; a dispute settled for the worker doesn't replace a failing review at close; "Don't ask again" in Claude Code writes `.claude/settings.local.json`, which may be flagged as a `never` change (untested).

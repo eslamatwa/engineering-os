@@ -53,6 +53,7 @@ Run 2026-11-13 after the owner logged the bundled CLI in. Control run C0 (loggin
 | P12 | SubagentStop send-back | `decision: block` from SubagentStop makes the subagent continue; the next stop has `stop_hook_active: true`. Agent `PostToolUse` arrives after SubagentStop with `status: completed` when the lead waits for the agent. | H11 |
 | P13 | Local pages in the Desktop browser pane | A `file://` page opens as a static snapshot: its scripts don't run, so it can't refresh. An `http://127.0.0.1` page runs normally and refreshes. | D33, E3 |
 | P14 | Version without a process spawn | `AI_AGENT=claude-code_2-1-321_agent` is set in the Desktop app's Code tab. Terminal sessions: pending (the owner's next live test). | D42, D48 |
+| P15 | Typed command fields | `UserPromptExpansion` for `/engos:decide TASK-001 accept` carries `prompt: "/engos:decide TASK-001 accept"`, `command_name: "engos:decide"`, `command_args: "TASK-001 accept"`, `expansion_type: slash_command`, `command_source: plugin` (2.1.321, headless). `/engos:pause` was recorded in the ledger. | D34, H2 |
 | P9 | Does `claude -p --resume <id>` keep the id? | **Yes, same `session_id`.** `SessionStart` fires with `source: resume`. With `--fork-session` the id changes and `source: fork`. | D34 |
 
 ### What this changes

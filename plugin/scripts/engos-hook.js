@@ -15,14 +15,19 @@ const path = require('path');
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
+// null when stdin isn't valid JSON: the gate then blocks instead of letting the call through (Fable review).
 function readInput() {
   try {
     const raw = fs.readFileSync(0, 'utf8');
     return raw ? JSON.parse(raw) : {};
   } catch (_) {
-    return {};
+    return null;
   }
 }
+
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'Monitor']);
+// Branch moves bring in other people's changes: re-baseline instead of reporting them as the task's (Fable review).
+const HEAD_MOVERS = /^git\s+(?:checkout|switch|pull|merge|rebase|cherry-pick|reset|am)\b/i;
 
 function projectStart(input) {
   return process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd();
@@ -73,7 +78,7 @@ function sessionStart(core, input) {
   lines.push('Engineering OS is on (.engos/, ' + session.mode + ' mode).');
   if (check.hard.length) lines.push('Read-only because: ' + check.hard.join(' '));
   if (check.warn.length) lines.push('Warnings: ' + check.warn.join(' '));
-  lines.push('Small edits need nothing. If a change will touch 3+ files or auth, payments, secrets, migrations or deployment, first run (Bash): engos plan set --kind <kind> --scope-write "<globs>". Prove work with `engos check <name>`. Protected files, push, network, destructive commands and external MCP tools ask the user. Refusals say exactly what to run; never work around one.');
+  lines.push('Small edits need nothing. If a change will touch 3+ files or auth, payments, secrets, migrations or deployment, first run (Bash): engos plan set --kind <kind> --scope-write "<globs>". Prove work with `engos check <name>`, then close the task with `engos task close <TASK-ID>` when the request is done (a docs-only edit needs no checks). Protected files, push, network, destructive commands and external MCP tools ask the user. Refusals say exactly what to run; never work around one.');
   lines.push('Save cost: when a job needs most of a codebase or many logs read (documenting every module, an inventory, summarising logs), start one engos:scout agent (no model parameter; it runs on Haiku) with the files and exactly what to extract, and work from its summary instead of reading them yourself. For an ordinary question, search first and read only the few files that matter. For planned steps run `engos step brief S<n>` and start the agent and model it prints.');
 
   const brief = briefExcerpt(core, root); // skipped while it is still the unfilled template
@@ -284,7 +289,7 @@ function gateBash(core, root, session, input, cfg) {
   }
 
   if (worst === 'approval') {
-    if (!session.paused && !task) task = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + cmd.slice(0, 80) });
+    if (!session.paused && !task) task = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + R.redact(cmd).slice(0, 80) });
     const A = require('./engos-approvals.js');
     const rec = A.request(root, { kind: 'action', tool: 'Bash', action: cmd, cls: worstPart.cls, session_id: sessionId, task_id: task ? task.task_id : null, context: A.contextFor(root, 'action', worstPart.cls, cmd) });
     core.ledger(root, { type: 'approval.requested', actor: { kind: 'hook' }, approval_id: rec.approval_id, kind: 'action', command_class: worstPart.cls, task_id: task ? task.task_id : null, session_id: sessionId });
@@ -305,15 +310,15 @@ function gateBash(core, root, session, input, cfg) {
   }
 
   if (!task) {
-    const t = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + cmd.slice(0, 200) });
-    core.ledger(root, { type: 'task.opened_by_command', actor: { kind: 'hook' }, task_id: t.task_id, command: cmd.slice(0, 500), parts: res.parts.map((p) => p.cls) });
+    const t = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + R.redact(cmd).slice(0, 200) });
+    core.ledger(root, { type: 'task.opened_by_command', actor: { kind: 'hook' }, task_id: t.task_id, command: R.redact(cmd).slice(0, 500), parts: res.parts.map((p) => p.cls) });
   }
 }
 
 // ---------------------------------------------------------------------------
 // H7 / H9 · PostToolUse: record approvals that were granted, observe what changed.
 // ---------------------------------------------------------------------------
-function postToolUse(core, input) {
+function postToolUse(core, input, failed) {
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
   const sessionId = sessionIdOf(input);
@@ -325,7 +330,8 @@ function postToolUse(core, input) {
   const cfg = projectRules(core, root, session);
   const isMcp = String(input.tool_name || '').startsWith('mcp__');
   if (isMcp && R.mcpAllowed(input.tool_name, core.defaults().policies, { mcp_allowlist: cfg.mcp_allowlist })) return; // host tools: nothing to record
-  const isBash = input.tool_name === 'Bash' || isMcp; // an external tool may change files like a command can
+  const isShell = SHELL_TOOLS.has(input.tool_name);
+  const isBash = isShell || isMcp; // an external tool may change files like a command can
   const task = session.paused ? null : core.activeTask(root, sessionId);
   const ti = input.tool_input || {};
 
@@ -363,20 +369,33 @@ function postToolUse(core, input) {
 
   // 2. Observe.
   let pkg = false;
-  if (isBash && !isMcp) {
+  let movesHead = false;
+  if (isShell) {
     const res = R.classifyCommand(ti.command || '', core.defaults().rules.bash_classes, cfg.protected.never);
     if (res.parts.every((p) => p.cls === 'read' || p.cls === 'check' || p.cls === 'engos')) return;
     pkg = res.parts.some((p) => p.cls === 'pkg_install');
+    movesHead = res.parts.some((p) => HEAD_MOVERS.test(R.normalizePart(p.part).text));
   }
 
   const observeLib = require('./engos-observe.js');
-  const base = core.loadBaseline(root, task.task_id);
+  let base = core.loadBaseline(root, task.task_id);
+  if (movesHead && base.git_head && observeLib.headSha(root) !== base.git_head) {
+    task.observed_frozen = observeLib.mergeObserved(task.observed_frozen, task.observed || {});
+    base = observeLib.baseline(root, cfg.protected);
+    fs.writeFileSync(path.join(core.tasksDir(root), task.task_id, 'baseline.json'), JSON.stringify(base, null, 2));
+    core.ledger(root, { type: 'baseline.moved', actor: { kind: 'hook' }, task_id: task.task_id, git_head: base.git_head, command: R.redact(String(ti.command || '').slice(0, 200)) });
+  }
   const before = new Set(((task.observed && task.observed.protected_hits) || []).map((h) => h.path));
   const prevObs = task.observed || {};
-  const sig = (o) => JSON.stringify([o.files_touched || [], o.lines_added || 0, o.lines_deleted || 0, o.files_created || 0, o.files_deleted || 0]);
-  const obs = observeLib.observe(root, base, cfg.protected, { withSnapshot: isBash });
-  // Checks must run after the latest change to count (phase 4).
-  if (sig(prevObs) !== sig(obs) || !isBash) task.last_change_at = new Date().toISOString();
+  const obs = observeLib.mergeObserved(task.observed_frozen, observeLib.observe(root, base, cfg.protected, { withSnapshot: isBash }));
+  // Checks must run after the latest change to count (phase 4); compared by content, not counts.
+  if (prevObs.diff_hash !== obs.diff_hash || !isBash) {
+    task.last_change_at = new Date().toISOString();
+    if (task.close_acknowledged || task.awaiting_close_ack) { // the user confirmed a different diff
+      task.close_acknowledged = null;
+      task.awaiting_close_ack = false;
+    }
+  }
   task.observed = Object.assign(task.observed || {}, obs, { pkg_install: (task.observed && task.observed.pkg_install) || pkg });
 
   const messages = [];
@@ -415,7 +434,9 @@ function postToolUse(core, input) {
   }
   core.saveProfile(root, task);
 
-  if (messages.length) process.stdout.write(JSON.stringify({ decision: 'block', reason: messages.join(' ') }));
+  if (!messages.length) return;
+  if (failed) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUseFailure', additionalContext: messages.join(' ') } }));
+  else process.stdout.write(JSON.stringify({ decision: 'block', reason: messages.join(' ') }));
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +490,7 @@ function agentPost(core, root, task, input) {
 
 // PostToolUseFailure on Agent: free the launch; a model the account lacks is marked unavailable (D32).
 function postToolUseFailure(core, input) {
+  if (SHELL_TOOLS.has(input.tool_name)) return postToolUse(core, input, true); // a failed command may still have changed files
   if (input.tool_name !== 'Agent' && input.tool_name !== 'Task') return;
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
@@ -484,10 +506,10 @@ function postToolUseFailure(core, input) {
   let note = '';
   a.status = 'failed';
   a.error = err.slice(0, 300);
-  if (a.model_requested && /model|not available|unavailable|not found|access|permission|entitle/i.test(err)) {
+  if (a.model_requested && O.MODEL_UNAVAILABLE_RE.test(err)) {
     O.markUnavailable(root, a.model_requested);
     core.ledger(root, { type: 'model.unavailable', actor: { kind: 'hook' }, task_id: task.task_id, model: a.model_requested });
-    note = 'The ' + a.model_requested + ' model failed and is now marked unavailable for this project. Run the step brief again for the fallback model, and tell the user.';
+    note = 'The ' + a.model_requested + ' model is not available on this account, so it is marked unavailable for 24 hours (`engos models reset` clears it). Run the step brief again for the fallback model, and tell the user.';
   }
   core.saveProfile(root, task);
   core.ledger(root, { type: 'step.failed', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, step: a.step });
@@ -617,7 +639,8 @@ function resumedAfter(session, since) {
 function promptExpansion(core, input) {
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
-  const prompt = String(input.prompt || '').trim();
+  // Verified live (2.1.321): UserPromptExpansion carries prompt, command_name and command_args.
+  const prompt = String(input.prompt || (input.command_name ? '/' + input.command_name + ' ' + (input.command_args || '') : '')).trim();
   if (!/^\/engos:/i.test(prompt)) return;
   const cmd = TYPED.find((c) => c.re.test(prompt));
   if (!cmd) return; // other /engos: commands (init, status, view) need no capture
@@ -636,7 +659,8 @@ function promptExpansion(core, input) {
   const id = m[1].toUpperCase();
   const task = core.loadProfile(root, id);
   if (!task) return tell('no task ' + id + '.');
-  if (task.session_id && task.session_id !== sessionId) {
+  if (!task.session_id) return tell(id + " isn't tied to a session yet, so a decision can't be accepted for it (D34). Ask Claude to run `engos task status " + id + '` in this session, then type the decision again.');
+  if (task.session_id !== sessionId) {
     core.ledger(root, { type: 'typed_command.refused', actor: { kind: 'hook' }, command: cmd.name, task_id: id, reason: 'other_session' });
     return tell(id + ' belongs to another session, so this command can\'t be accepted here (D34).');
   }
@@ -739,7 +763,7 @@ function preToolUse(core, input) {
   const session = ensureSession(core, root, sessionIdOf(input));
   const cfg = projectRules(core, root, session);
   if (WRITE_TOOLS.has(input.tool_name)) return gateWrite(core, root, session, input, cfg);
-  if (input.tool_name === 'Bash') return gateBash(core, root, session, input, cfg);
+  if (SHELL_TOOLS.has(input.tool_name)) return gateBash(core, root, session, input, cfg);
   if (input.tool_name === 'Agent' || input.tool_name === 'Task') return gateAgent(core, root, session, input, cfg);
   if (String(input.tool_name || '').startsWith('mcp__')) return gateMcp(core, root, session, input, cfg);
 }
@@ -747,6 +771,11 @@ function preToolUse(core, input) {
 function main() {
   const mode = process.argv[2];
   const input = readInput();
+  if (mode === 'pre-tool-use' && (!input || !input.tool_name)) {
+    process.stderr.write('Engineering OS: the hook input could not be read, so the call is blocked to stay safe.');
+    process.exit(2);
+  }
+  if (!input) return;
   let core;
   try {
     core = require('./engos-core.js');

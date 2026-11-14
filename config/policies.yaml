@@ -18,7 +18,7 @@ modes:
   workspace_write:
     allowed: [edit_inside_scope, local_git, configured_checks, local_package_install_observed]
     denied: [external_actions_without_approval]
-  default_mode: read_only              # every session starts here until a task opens
+  default_mode: question               # reading is free; the first edit opens a trivial task (D8). read_only is only for a failed self-check or an analysis/security_review task
   requires_git_for_write: true         # D11
 
 hard_gates:                            # cannot be lowered by human command, project config or pause (D12, D29)
@@ -26,7 +26,7 @@ hard_gates:                            # cannot be lowered by human command, pro
   - { id: G-protected, when: "write to high_risk protected path", require: scope_approval }
   - { id: G-never, when: "write to never path", require: deny }
   - { id: G-self, when: "bash class self_protect (includes running claude, D34)", require: deny }
-  - { id: G-prod, when: "deploy to production", require: deny }       # v0.1 never deploys to production
+  - { id: G-prod, when: "deploy to production", require: approval }   # no deploy detection in v0.1: push, publish and infra commands (terraform, kubectl, helm, cloud CLIs) ask
 
 mcp:                                   # D49: MCP tools are external actions (G-delivery) unless listed here
   host_tools_allowed:                  # Claude's own app tools: no prompt, so the gate isn't noisy
@@ -83,10 +83,10 @@ knowledge:
   never_store: [secrets, tokens, private_keys, raw_credentials]
   facts_need_source: true              # path:line, command output, or human
   assumptions_marked: true             # status: assumed, needs: human_confirmation
-  secret_found_in_diff_or_state: needs_human
+  secrets_in_commands: redacted_before_storage   # D52; scanning diffs for secrets is not built (roadmap)
 
 state_files:
-  changed_only_by: engos_cli           # hand-editing YAML is denied by the gate
+  changed_only_by: engos_cli_and_hooks # task/session/status files are `never` for Edit/Write and for commands that name them (D52); config.yaml asks
   committed: [.engos/config.yaml, .engos/BRIEF.md, .engos/STATE.yaml]      # D28
   local_only: [.engos/tasks/, .engos/approvals/, .engos/ledger.jsonl, .engos/status.json]
 

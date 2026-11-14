@@ -199,7 +199,8 @@ used_at: null
 | `validation.verdict` | hook | `verdict`, `findings` |
 | `dispute.opened` / `dispute.resolved` | CLI | `resolved_by: lead\|human`, `reason` |
 | `criteria.amended` / `scope.amended` | CLI | `before`, `after`, `by`, `reason` |
-| `approval.requested/granted/rejected/used/expired` | hook | `approval_id`, `action_hash`, `method` |
+| `approval.requested/granted/expired` | hook | `approval_id`, `action_hash`, `method`. A "No" in the prompt isn't visible to hooks: the request stays open and expires after an hour |
+| `baseline.moved` | hook | the task base moved to a new HEAD after a checkout, pull or merge (D52) |
 | `model.asked` / `model.answered` | hook | `tier: deep`, `answer` (D32) |
 | `responsibility.transferred` | CLI / hook | `from`, `to`, `reason`, `decision_id` |
 | `engos.paused` / `engos.resumed` | hook | `by: human` |

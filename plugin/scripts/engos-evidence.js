@@ -79,16 +79,26 @@ function evaluateClose(task, config, opts) {
   if (cls !== 'question' && changed) met.push('E-diff-shown');
 
   // E-checks / E-checks-if-present: required checks passed after the last change.
-  const required = requiredChecks(config);
+  const R2 = require('./engos-rules.js');
+  const notCounted = (((require('./engos-core.js').defaults().rules.budgets || {}).trivial_edit || {}).lines_not_counted) || [];
+  const docsOnly = touched.length > 0 && touched.every((f) => R2.matchAny(f, notCounted));
+  const required = cls === 'trivial_edit' && docsOnly ? [] : requiredChecks(config);
   const lastChange = task.last_change_at ? Date.parse(task.last_change_at) : 0;
   if (cls !== 'question' && changed) {
     if (!required.length) {
-      if (cls === 'trivial_edit') met.push('E-checks-if-present (no checks configured)');
+      if (cls === 'trivial_edit') met.push(docsOnly ? 'E-checks-if-present (docs only)' : 'E-checks-if-present (no checks configured)');
       else missing.push('checks: none are configured in .engos/config.yaml, so this ' + cls + ' task has nothing to prove it works. Ask the user to add them under checks:');
     } else {
       const latest = latestRuns(task);
+      const atOpen = (o.baseline && o.baseline.checks) || null;
       for (const name of required) {
         const r = latest[name];
+        const now = ((config && config.checks) || {})[name];
+        if (atOpen && Object.prototype.hasOwnProperty.call(atOpen, name) && atOpen[name] !== now && !(task.approved_files || {})['.engos/config.yaml']) {
+          missing.push('the command for check "' + name + '" changed during this task (was "' + atOpen[name] + '", now "' + now + '") without the user approving the config change; ask the user');
+          continue;
+        }
+        if (r && r.command !== undefined && now !== undefined && r.command !== now) { missing.push('run `engos check ' + name + '` again: its command changed since it ran'); continue; }
         if (!r) missing.push('run `engos check ' + name + '`');
         else if (Date.parse(r.at) < lastChange) missing.push('run `engos check ' + name + '` again: it last ran before the latest change');
         else if (!r.passed) missing.push('`engos check ' + name + '` must pass (last exit code ' + r.exit + ')');
@@ -121,6 +131,10 @@ function evaluateClose(task, config, opts) {
     else met.push('E-review-record (' + last.step + ')');
     if (!task.close_acknowledged) missing.push('the user\'s confirmation: ask them to type /engos:decide ' + task.task_id + ' close');
   }
+
+  // D25: a validator finding of medium severity or higher is the user's call, in any class.
+  const severe = (task.reviews || []).filter((r) => (!lastChange || Date.parse(r.at) >= lastChange) && (r.max_severity || 0) >= 2);
+  if (severe.length && cls !== 'high_risk' && !task.close_acknowledged) missing.push('the user\'s confirmation: a review (' + severe[severe.length - 1].step + ') reported a finding of medium severity or higher; show it and ask them to type /engos:decide ' + task.task_id + ' close');
 
   return { ok: missing.length === 0, cls, missing, met, notYet };
 }

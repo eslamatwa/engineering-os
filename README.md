@@ -25,12 +25,12 @@ Rules written in a prompt are requests: the model can skip them, forget them or 
 
 | | |
 | --- | --- |
-| **A gate on every edit and command** | Each Bash command is split and classified (read, check, local git, install, network, push, destructive). Edits are checked against protected paths and the task's planned scope. Adds about 10–20 ms on top of Node start-up. |
+| **A gate on edits, commands, agents and MCP tools** | Every file edit, shell command (Bash, PowerShell), agent call and external MCP call passes the gate. Commands are split, unwrapped (subshells, `bash -c`, `eval`, `npx`, `xargs`) and classified: read, check, local git, install, network, push, destructive. A command it doesn't recognise runs and is watched, and asks in high-risk tasks. Edits are checked against protected paths and the planned scope. Adds about 10–20 ms on top of Node start-up. |
 | **Risk classes that only go up** | `question` → `trivial_edit` → `standard` → `high_risk`, raised by what is observed: protected paths, diff size, new packages, sensitive topics (auth, payments, secrets, migrations, deployment) in any language. Only you can lower one, by typing a command. |
-| **Your approval, in Claude Code's own prompt** | `git push`, publishing, network calls, destructive commands, external MCP tools, and the first edit of each protected file show Claude Code's Allow/Deny prompt, in every permission mode. The model can't click it, and every answer is recorded. |
+| **Your approval, in Claude Code's own prompt** | `git push`, publishing, network calls, destructive commands, external MCP tools, and the first edit of each protected file show Claude Code's Allow/Deny prompt, in every permission mode. The model can't click it, and every approval is recorded (a "No" just leaves the request unanswered, and it expires after an hour). |
 | **Evidence before done** | `engos check <name>` runs your exact test, lint or build command and records the real exit code. A task won't close without passing checks after the last change, changes inside the plan, a written residual risk, and for high-risk work an independent review and your confirmation. |
 | **Agents that stay in their lane** | Three subagents: a read-only **scout** on Haiku, a **worker** that implements one planned step, and a **validator** that reviews and never edits. The gate checks each agent call uses the right model, allows one writer at a time, and blocks agents from starting agents. Reports are compared with what the hooks actually saw change. |
-| **Escalation with a ceiling** | A failing step gets three attempts: the routed model, the same model with the exact failure, one tier up. Then it stops and hands you a summary with options. Missing tools don't burn attempts, and neither does a disputed acceptance criterion. |
+| **Escalation with a ceiling** | When a task uses worker steps, a failing step gets three attempts: the routed model, the same model with the exact failure, one tier up. Then it stops and hands you a summary with options. Missing tools don't burn attempts, and neither does a disputed acceptance criterion. |
 | **You can see the agents** | A status line under the prompt, `/engos:status` in chat, and `/engos:view`: an interactive live page with the agent graph, every step, the files each agent changed, its report, the checks, and anything waiting for you. Read-only by design. |
 | **Recommendations that fit your project** | `/engos:recommend` reads your stack and lists the official skills and MCP servers from Anthropic's marketplace that match it, with the install commands. It never installs anything itself. |
 
@@ -45,7 +45,7 @@ Measured in real Claude Code against plain Claude Code, same prompts, same model
 | Add a function and its tests in that project | $0.13 | $0.14 | +10% |
 | Trivial edit / bug fix | $0.09 / $0.10 | $0.09 / $0.10 | +2–3% |
 
-Heavy reading goes to a Haiku scout and ordinary questions search before reading, so reading-heavy work gets cheaper. Code changes cost a little more for the plan and the evidence. Reading through a scout is slower in wall-clock time.
+Heavy reading goes to a Haiku scout and ordinary questions search before reading, so reading-heavy work gets cheaper. Code changes cost a little more for the plan and the evidence. Reading through a scout is slower in wall-clock time. Each figure is the mean of two runs per side, and single runs vary (one baseline ranged from $0.16 to $0.42), so read them as direction, not precision.
 
 ## Install
 
@@ -90,11 +90,11 @@ A one-line typo fix asks nothing. A `git push` always asks.
 | `/engos:class TASK-… <class>` | you | Lower a task's class (built-in safety rules stay) |
 | `/engos:pause` · `/engos:resume` | you | Turn the workflow off for this session; approvals for protected files, push, network and destructive commands stay on |
 
-Claude uses the `engos` CLI itself (`plan set`, `step brief`, `check`, `task close` and others). It is the only thing that writes task state.
+Claude uses the `engos` CLI itself (`plan set`, `step brief`, `check`, `task close` and others). Task state is written only by the hooks and that CLI; Claude can't edit it directly, and changing `.engos/config.yaml` asks you. Commands and tool inputs are stored with secrets (tokens, passwords, keys) redacted.
 
 ## What it is not
 
-Engineering OS prevents common mistakes and detects indirect changes inside the repo after they happen. **It is not a sandbox** and does not stop a model that is deliberately trying to get around it. It doesn't see what a script does outside the repo, and it never deploys to production.
+Engineering OS prevents common mistakes and detects indirect changes inside the repo after they happen. **It is not a sandbox** and does not stop a model that is deliberately trying to get around it. It doesn't see what a script does outside the repo. It doesn't detect deployments as such: pushes, publishing and infrastructure commands (terraform, kubectl, helm, cloud CLIs) ask you instead.
 
 It runs wherever Claude Code runs with hooks: the terminal, the Desktop app's Code tab, VS Code and JetBrains, and your phone through Remote Control. It doesn't run in the Desktop Chat tab, claude.ai or Cowork.
 
@@ -122,7 +122,7 @@ Tasks, approvals, the ledger and the live view stay local and are gitignored.
 | --- | --- |
 | Using it | [User guide](docs/engos-user-guide.html) · [الدليل بالعربية](docs/engos-user-guide-ar.html) |
 | How it is built | [Architecture page](docs/engos-architecture.html) · [`docs/architecture.md`](docs/architecture.md) · [`docs/hooks.md`](docs/hooks.md) · [`docs/execution-contract.md`](docs/execution-contract.md) |
-| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D51) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
+| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D52) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
 | What was verified | [`docs/phase-results.md`](docs/phase-results.md) · [`docs/benchmark.md`](docs/benchmark.md) · [`docs/spike-results.md`](docs/spike-results.md) · [`tests/acceptance-scenarios.md`](tests/acceptance-scenarios.md) |
 | What's next | [`docs/roadmap.md`](docs/roadmap.md) · [`docs/live-view-ideas.md`](docs/live-view-ideas.md) |
 
@@ -133,12 +133,12 @@ Tasks, approvals, the ledger and the live view stay local and are gitignored.
 | `plugin/` | The plugin: hooks, the `engos` CLI, three subagents, commands, the live view |
 | `config/` | The rules in readable YAML, compiled into `plugin/defaults/` by `tools/build-defaults.js` |
 | `docs/` | Design, decisions, evidence, guides |
-| `tests/unit/` | 79 tests; CI runs them on Windows, macOS and Linux with Node 20 and 24 |
+| `tests/unit/` | 93 tests; CI runs them on Windows, macOS and Linux with Node 20 and 24 |
 | `tools/` | Build, latency measurement, benchmark, icon |
 
 ## Status
 
-Version 0.1. Build phases 1–6 are complete; phase 7 (hardening and publishing) is in progress. Still to verify by hand: the status line in the Desktop app, and Claude Code on the web.
+Version 0.1.0. Build phases 1–6 are complete; phase 7 (hardening and publishing) is in progress, including the fixes from an independent review ([`docs/reviews/fable-project-review.md`](docs/reviews/fable-project-review.md)). Still to verify by hand: the status line in the Desktop app, and Claude Code on the web.
 
 ## License
 

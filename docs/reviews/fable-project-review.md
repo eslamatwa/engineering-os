@@ -1,6 +1,6 @@
 # Engineering OS v0.1: independent review (Fable, 2026-11-14)
 
-Review of the project as built at commit `e3e0476`, requested by the owner. Fable read the docs, the code and the tests, ran the 79 unit tests (all pass), and reproduced several findings against a scratch repo. Nothing in the repo was changed. Recorded as received; fixes are tracked separately.
+Review of the project as built at commit `e3e0476`, requested by the owner. Fable read the docs, the code and the tests, ran the 79 unit tests (all pass), and reproduced several findings against a scratch repo. Nothing in the repo was changed. Recorded as received. The fixes are D52 in `docs/decisions.md`, with one test per finding in `tests/unit/review-fixes.test.js`; what was left open is listed at the end of `docs/phase-results.md`.
 
 ## 1. Overall verdict
 

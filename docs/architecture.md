@@ -32,7 +32,7 @@ Request ─▶ Classify ─▶ Route ─▶ Plan ─▶ Execute ─▶ Verify �
 
 | Component | Implemented as | Level |
 | --- | --- | --- |
-| Gate | `PreToolUse` hooks on writes, Bash and Agent (MCP tools: not built yet) | prevented |
+| Gate | `PreToolUse` hooks on file writes, shell commands (Bash, PowerShell, Monitor), Agent and MCP calls | prevented |
 | Observer | `PostToolUse` hooks and git diff | detected |
 | Classifier and router | Code reading `config/rules.yaml` and the task profile | prevented |
 | Lead | The main Claude Code session, guided by the session summary, refusals and briefs | advisory, bounded by the gate |

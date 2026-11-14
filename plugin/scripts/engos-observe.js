@@ -106,11 +106,16 @@ function protectedCandidates(root, protectedPaths) {
   return out;
 }
 
+// Engineering OS writes these itself on every event, so a size/mtime snapshot would flag its own writes.
+// They are still `never` for Edit/Write and for any command that names them (G-self).
+const SELF_WRITTEN = ['.engos/tasks/', '.engos/sessions/', '.engos/view/', '.engos/status.json', '.engos/statusline.js'];
+
 function snapshotProtected(root, protectedPaths, limit) {
   const snap = {};
   const cands = protectedCandidates(root, protectedPaths);
   let n = 0;
   for (const rel of Object.keys(cands)) {
+    if (SELF_WRITTEN.some((p) => rel === p || rel.startsWith(p))) continue;
     if (n++ >= (limit || 2000)) break;
     try {
       const st = fs.statSync(path.join(root, rel));
@@ -121,6 +126,15 @@ function snapshotProtected(root, protectedPaths, limit) {
 }
 
 // Baseline taken when a task opens.
+// The check commands when the task opened: evidence from a check whose command changed later doesn't count.
+function checksAtOpen(root) {
+  try {
+    const core = require('./engos-core.js');
+    const cfg = core.loadProjectConfig(root);
+    return cfg.ok ? Object.assign({}, cfg.config.checks || {}) : {};
+  } catch (_) { return {}; }
+}
+
 function baseline(root, protectedPaths) {
   const base = headSha(root);
   const dirty = {};
@@ -131,11 +145,39 @@ function baseline(root, protectedPaths) {
     git_head: base,
     dirty_at_open: dirty,
     protected_snapshot: snapshotProtected(root, protectedPaths),
+    checks: checksAtOpen(root),
     taken_at: new Date().toISOString(),
   };
 }
 
 // Observe everything changed since the baseline. withSnapshot: also compare protected files.
+// A hash of what the task changed: the tracked diff against the task base plus each changed file's content.
+// "Changed since the last check" compares this, so an edit that keeps line counts still counts (Fable review).
+function diffHash(root, base, touched) {
+  const h = crypto.createHash('sha1');
+  try { h.update(git(root, ['diff', base.git_head || EMPTY_TREE, '--binary', '--no-color'])); } catch (_) { h.update('nodiff'); }
+  for (const p of (touched || []).slice().sort()) h.update(p + ':' + (hashFile(path.join(root, p)) || '-') + ';');
+  return h.digest('hex');
+}
+
+// After a re-baseline (branch switch, pull, merge), keep what the task had already changed.
+function mergeObserved(frozen, obs) {
+  if (!frozen) return obs;
+  const files = Array.from(new Set((frozen.files_touched || []).concat(obs.files_touched || []))).sort();
+  return Object.assign({}, obs, {
+    files_touched: files,
+    files_count: files.length,
+    files_created: (frozen.files_created || 0) + (obs.files_created || 0),
+    files_deleted: (frozen.files_deleted || 0) + (obs.files_deleted || 0),
+    lines_added: (frozen.lines_added || 0) + (obs.lines_added || 0),
+    lines_deleted: (frozen.lines_deleted || 0) + (obs.lines_deleted || 0),
+    doc_lines: (frozen.doc_lines || 0) + (obs.doc_lines || 0),
+    modules: Array.from(new Set((frozen.modules || []).concat(obs.modules || []))).sort(),
+    protected_hits: (frozen.protected_hits || []).concat((obs.protected_hits || []).filter((h) => !(frozen.protected_hits || []).some((x) => x.path === h.path))),
+    diff_hash: (frozen.diff_hash || '') + ':' + obs.diff_hash,
+  });
+}
+
 function observe(root, base, protectedPaths, opts) {
   const o = opts || {};
   const entries = statusEntries(root);
@@ -217,9 +259,10 @@ function observe(root, base, protectedPaths, opts) {
     lines_added: added,
     lines_deleted: deleted,
     doc_lines: docLines,
+    diff_hash: diffHash(root, base, touched),
     modules,
     protected_hits: protectedHits,
   };
 }
 
-module.exports = { baseline, observe, snapshotProtected, statusEntries, numstat, headSha, EMPTY_TREE };
+module.exports = { baseline, observe, mergeObserved, diffHash, snapshotProtected, statusEntries, numstat, headSha, EMPTY_TREE };

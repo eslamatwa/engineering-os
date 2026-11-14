@@ -35,7 +35,7 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 
 ## Data handling
 
-- Secrets, tokens, private keys and raw credentials never go into `.engos/`, the ledger, briefs or reports. Check output is never stored, only its hash; the status picture holds labels, never command output or environment values. Automatic secret scanning of diffs is **not built in v0.1**.
+- Secrets, tokens, private keys and raw credentials never go into `.engos/`, the ledger, briefs or reports. Check output is never stored, only its hash. Commands and MCP inputs are redacted before they are written to approvals, the ledger and the status files (Authorization headers, tokens and passwords given as flags or `KEY=value`, credentials in URLs, well-known key formats); the approval hash still uses the original text (D52). Automatic secret scanning of diffs is **not built in v0.1**.
 - Facts need a source (file and line, command output, or a human). Assumptions are marked as assumptions until a human confirms them.
 - Tasks, approvals and the ledger stay local and are gitignored. Config, brief and state are committed (D28).
 
@@ -53,6 +53,9 @@ Gate hooks fail closed: a crash, timeout or missing Node blocks the call (`onFai
 | A dangerous change in an unprotected file | Code can't judge meaning | Projects add their own protected paths; sensitivity flags from the model |
 | An injected instruction misleads the human approver | The human makes the final call | Approvals show the exact command, not the model's summary |
 | Another session or a scheduled task sends an approval command | Hooks get no origin field | Same-session rule (D34) |
+| A command the classifier doesn't recognise | The Bash gate classifies by program and subcommand; anything else is `unknown` | Unknown commands run and are observed in question, trivial and standard tasks, and ask in high_risk ones; wrappers, subshells and git options are unwrapped first; unknown `git`, `gh` and infra subcommands ask (D52) |
+| Files outside the repo, symlinks | Hooks only see paths inside the repo and don't resolve symlinks | Out of scope by D7 |
+| Two hooks writing the same task at once | No file locking in v0.1 | Rare in practice: one session drives one task |
 | The user turns the plugin off | Their choice | `/engos:pause` keeps hard gates on; uninstall is outside our control |
 | A subagent's report misstates what it did | Reports are model text | Files changed are compared with what hooks observed; refs and quoted log lines are checked to exist; a bad report is sent back once, then flagged to the lead as unverified |
 | MCP tools act outside the repo | They can, by design | Every call asks unless it is one of Claude's own app tools or in the project's `mcp_allowlist` (D49); calls are observed for repo changes like commands |
