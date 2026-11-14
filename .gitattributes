@@ -1,5 +1,0 @@
-# Keep LF everywhere so shell launchers and hook scripts work after a Windows checkout.
-* text=auto eol=lf
-*.cmd text eol=crlf
-*.png binary
-*.jpg binary
