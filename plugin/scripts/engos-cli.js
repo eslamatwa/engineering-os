@@ -772,8 +772,11 @@ function serveView(root, args) {
     const deny = (code) => { res.writeHead(code, { 'Cache-Control': 'no-store' }); res.end(); };
     if (req.method !== 'GET') return deny(405);
     if (!hosts.has(String(req.headers.host || '').toLowerCase())) return deny(403);
+    // Opening the page itself from a link in another app is fine (the path is secret anyway); loading its
+    // data from another site's page (a <script> tag) is what must fail. Chrome marks link opens cross-site.
     const site = String(req.headers['sec-fetch-site'] || 'none');
-    if (site !== 'none' && site !== 'same-origin') return deny(403);
+    const pageOpen = String(req.headers['sec-fetch-mode'] || '') === 'navigate' && String(req.headers['sec-fetch-dest'] || 'document') === 'document';
+    if (site !== 'none' && site !== 'same-origin' && !pageOpen) return deny(403);
     const name = String(req.url || '/').split('?')[0];
     if (name === '/' + token) { res.writeHead(302, { Location: prefix }); return res.end(); }
     if (!name.startsWith(prefix)) return deny(404);

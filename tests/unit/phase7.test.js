@@ -167,6 +167,9 @@ test('live view server: only at its random path, only for this host, never for c
     assert.match((await get(url)).body, /Engineering OS Live View/);
     assert.strictEqual((await get('http://127.0.0.1:' + port + '/status.js')).code, 404, 'no data without the random path');
     assert.strictEqual((await get(url + 'status.js', { 'Sec-Fetch-Site': 'cross-site' })).code, 403, 'a web page from another site');
+    assert.strictEqual((await get(url + 'status.js', { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'no-cors', 'Sec-Fetch-Dest': 'script' })).code, 403, 'a script tag on another site');
+    assert.strictEqual((await get(url, { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' })).code, 200, 'opening the link from another app works');
+    assert.strictEqual((await get(url + 'status.js', { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'script' })).code, 403);
     assert.strictEqual((await get(url + 'status.js', { Host: 'evil.example:' + port })).code, 403, 'DNS rebinding');
   } finally { child.kill(); }
 });

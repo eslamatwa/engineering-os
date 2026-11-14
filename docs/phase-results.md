@@ -394,3 +394,10 @@ Built: `plugin/scripts/engos-usage.js` (tokens and cost from transcripts, increm
 - Browser check (demo with a scout on Haiku, two workers on Sonnet, a lead on Opus, a failed check and a pending push): every panel rendered; diff colours additions and deletions; replay rebuilt the task at event 9 of 20; the project list showed this project; the export produced a full Markdown report; Arabic flips the layout with connected letters; phone width has no horizontal scroll. Notifications need the user's browser permission and were not exercised.
 - A bug found and fixed on the way: the first registry location (`~/.engos/projects.json`) made the home folder look like a project (a folder named `.engos` marks one). The registry moved to `%LOCALAPPDATA%\engos` / `~/.config/engos`; the stray folder (created by the test run minutes earlier) was removed; a test pins the new location.
 - `tests/unit/live-view.test.js` (7 tests). All unit tests: 100 of 100.
+
+### Phase 7: live view in real Chrome (Claude in Chrome)
+
+- The page served by `engos view --serve` opened, rendered every panel and refreshed in the user's own Chrome.
+- Bug found and fixed: Chrome marks a page opened from outside it (another app, the extension) as `Sec-Fetch-Site: cross-site`, so the server answered 403 and the live view could not be opened from a link. Opening the page itself (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`) is now allowed; loading its data from another site's page is still refused. Tests added.
+- Notifications: with the browser permission simulated in the page, a new pending push produced exactly one notification ("Waiting for your Allow/Deny in Claude Code: git push origin release/2.0"), none for the item already known, and none again on later refreshes. The real permission prompt is the user's to answer.
+- The extension can't open `file://` pages, so that mode was not re-checked in Chrome.
