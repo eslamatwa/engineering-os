@@ -720,24 +720,53 @@ function cmdStatus() {
 // app's browser pane). Bound to 127.0.0.1, GET only, serves exactly two files, stops after 8 hours.
 function serveView(root, args) {
   const http = require('http');
+  const crypto = require('crypto');
   const S = require(path.join(__dirname, 'engos-status.js'));
   const viewDir = core.engosPath(root, 'view');
   const port = Number(args.port) || 4317;
+  // A random path per run: a web page in the same browser can't guess it, so it can't load status.js with a
+  // <script> tag and read the project's state. The Host check stops DNS rebinding; Sec-Fetch-Site stops
+  // cross-site loads in browsers that send it.
+  const token = crypto.randomBytes(18).toString('base64url');
+  const hosts = new Set(['127.0.0.1:' + port, 'localhost:' + port]);
+  const prefix = '/' + token + '/';
   const server = http.createServer((req, res) => {
+    const deny = (code) => { res.writeHead(code, { 'Cache-Control': 'no-store' }); res.end(); };
+    if (req.method !== 'GET') return deny(405);
+    if (!hosts.has(String(req.headers.host || '').toLowerCase())) return deny(403);
+    const site = String(req.headers['sec-fetch-site'] || 'none');
+    if (site !== 'none' && site !== 'same-origin') return deny(403);
     const name = String(req.url || '/').split('?')[0];
-    const file = name === '/' || name === '/index.html' ? 'index.html' : name === '/status.js' ? 'status.js' : null;
-    if (req.method !== 'GET' || !file) { res.writeHead(req.method === 'GET' ? 404 : 405); res.end(); return; }
+    if (name === '/' + token) { res.writeHead(302, { Location: prefix }); return res.end(); }
+    if (!name.startsWith(prefix)) return deny(404);
+    const rest = name.slice(prefix.length);
+    const file = rest === '' || rest === 'index.html' ? 'index.html' : rest === 'status.js' ? 'status.js' : null;
+    if (!file) return deny(404);
     try {
       const body = fs.readFileSync(path.join(viewDir, file));
-      res.writeHead(200, { 'Content-Type': file === 'status.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      res.writeHead(200, {
+        'Content-Type': file === 'status.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'no-referrer',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; frame-ancestors 'self'",
+      });
       res.end(body);
-    } catch (_) { res.writeHead(404); res.end(); }
+    } catch (_) { deny(404); }
   });
-  server.on('error', (e) => fail(e.code === 'EADDRINUSE' ? 'port ' + port + ' is in use. The live view may already be running at http://127.0.0.1:' + port + '/ (or pass --port).' : e.message));
+  server.on('error', (e) => fail(e.code === 'EADDRINUSE' ? 'port ' + port + ' is in use: the live view may already be running (or pass --port).' : e.message));
   server.listen(port, '127.0.0.1', () => {
     S.writeStatus(root, { view: true });
-    console.log('Live view: http://127.0.0.1:' + port + '/');
-    console.log('Read-only, local to this machine. It refreshes every 2 seconds. Stop it with Ctrl+C; it stops by itself after 8 hours.');
+    console.log('Live view: http://127.0.0.1:' + port + prefix);
+    console.log('Read-only, local to this machine, and only at this address (it changes each run). It refreshes every 2 seconds. Stop it with Ctrl+C; it stops by itself after 8 hours.');
+    if (args.open) {
+      try {
+        const url = 'http://127.0.0.1:' + port + prefix;
+        if (process.platform === 'win32') cp.spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+        else cp.spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+      } catch (_) { /* print only */ }
+    }
   });
   setTimeout(() => process.exit(0), 8 * 60 * 60 * 1000).unref();
 }

@@ -149,3 +149,24 @@ test('D21: a disputed criterion is not an attempt; unknown step kinds are refuse
   assert.strictEqual(O.failuresFor(task, 'S1'), 0);
   assert.strictEqual(O.expectedFor(task, step, D, { available: ['haiku', 'sonnet', 'opus'] }).model, 'sonnet');
 });
+
+test('live view server: only at its random path, only for this host, never for cross-site loads', async () => {
+  const dir = project('serve');
+  const port = 43000 + Math.floor(Math.random() * 2000);
+  const child = cp.spawn(process.execPath, [CLI, 'view', '--serve', '--port', String(port)], { cwd: dir, env: env() });
+  const url = await new Promise((resolve, reject) => {
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; const m = /Live view: (http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]+\/)/.exec(out); if (m) resolve(m[1]); });
+    setTimeout(() => reject(new Error('no address: ' + out)), 10000);
+  });
+  const get = (u, headers) => new Promise((resolve) => {
+    require('http').get(u, { headers: headers || {} }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve({ code: res.statusCode, body: b })); }).on('error', () => resolve({ code: 0 }));
+  });
+  try {
+    assert.strictEqual((await get(url + 'status.js')).code, 200);
+    assert.match((await get(url)).body, /Engineering OS Live View/);
+    assert.strictEqual((await get('http://127.0.0.1:' + port + '/status.js')).code, 404, 'no data without the random path');
+    assert.strictEqual((await get(url + 'status.js', { 'Sec-Fetch-Site': 'cross-site' })).code, 403, 'a web page from another site');
+    assert.strictEqual((await get(url + 'status.js', { Host: 'evil.example:' + port })).code, 403, 'DNS rebinding');
+  } finally { child.kill(); }
+});

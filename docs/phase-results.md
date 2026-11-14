@@ -334,7 +334,7 @@ All unit tests: 74 of 74.
 
 - One command opens a standard task (`engos plan set --kind … --scope-write …`); the refusal names that one command; shorter session summary; the empty brief template is no longer injected; the session summary tells the lead to send heavy reading to an `engos:scout` on Haiku.
 - Benchmark round 3 (`docs/benchmark.md`): big reading-heavy task −41% and project analysis −23% against plain Claude Code; small edits +2–3%; a small 3-file feature +19%. Reading through a scout is slower in wall-clock time.
-- 76 of 76 unit tests.
+- 76 of 76 unit tests at that point.
 
 ### Phase 7 additions: D51 and a real project
 
@@ -353,3 +353,10 @@ Scenario: `acceptance.js` (protected, "owned by the product team") requires `sum
 Three real failed attempts in a row were not reproduced: given a contradictory check, the worker disputes it instead of retrying, which is the intended behaviour. Escalation itself is covered by unit tests (C1, C2).
 
 Gate latency: recent CI showed the write gate up to 79 ms over Node start-up on macOS. The agents and approvals modules were loaded on every edit; they now load only when needed. Locally: Write 30 → 11–21 ms. Recommendations no longer count a language with fewer than 5 files (pyright was suggested for 3 helper scripts in latchkey). 78 of 78 unit tests.
+
+### Phase 7 additions: README, docs review, live view server
+
+- New product README: the idea, features, measured cost, install, quick start, commands, limits, configuration, documentation map.
+- Docs reviewed for describing the product as built: removed "not built yet" banners from both guides, removed skills that were never built from the architecture page, named the product "Engineering OS" (D31), added the recommendations step to the guides.
+- Live view server: a web page in the same browser could load `status.js` with a script tag and read the project state. Now served only under a random path per run, with Host (DNS rebinding) and `Sec-Fetch-Site` checks, CSP and no-referrer. Unit test added. 79 of 79 unit tests; `claude plugin validate --strict` passes for the plugin and the marketplace.
+- `docs/live-view-ideas.md`: proposals for the next live view, for review.

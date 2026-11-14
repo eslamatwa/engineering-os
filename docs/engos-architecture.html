@@ -1,4 +1,4 @@
-<title>Claude Engineering OS</title>
+<title>Engineering OS</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -148,13 +148,13 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
   <div class="topbar"><span>v0.1 · as built through phase 6</span><span>Plugin architecture</span></div>
 
   <header class="hero">
-    <h1>Claude Engineering OS</h1>
+    <h1>Engineering OS</h1>
     <p class="sub">A <em>Claude Code plugin</em> that catches mistakes before they land</p>
     <p class="lede">Classify each request from what the code actually touches, route every step to the right model, block what policy forbids, and accept nothing as done without recorded evidence.</p>
   </header>
 
   <dl class="meta">
-    <div><dt>Ships as</dt><dd>Claude Code plugin: skills, subagents, hooks, commands</dd></div>
+    <div><dt>Ships as</dt><dd>Claude Code plugin: hooks, three subagents, commands and the <code>engos</code> CLI</dd></div>
     <div><dt>Runtime</dt><dd>Claude only. No provider adapters.</dd></div>
     <div><dt>Scope v0.1</dt><dd>Code inside the repo. Logs are analysed, not fetched from servers.</dd></div>
     <div><dt>Protects against</dt><dd>Mistakes and injected instructions. Not a sandbox.</dd></div>
@@ -177,13 +177,13 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
       <div class="panel">
         <h3 class="hot">Plugin</h3>
         <ul class="dash">
-          <li>Skills, subagents, commands and hooks in one install.</li>
+          <li>Subagents, commands and hooks in one install.</li>
           <li>Hooks run as code on matching tool calls.</li>
           <li>Can't ship permission rules itself, so <code>/engos:init</code> offers them for the project.</li>
         </ul>
       </div>
     </div>
-    <p class="verdict">Skills carry the know-how. <b>Hooks carry the guarantees.</b></p>
+    <p class="verdict">The session summary, refusals and briefs carry the know-how. <b>Hooks carry the guarantees.</b></p>
   </section>
 
   <!-- 2 -->
@@ -279,7 +279,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <div class="grid3" style="margin-bottom:16px">
       <div class="panel"><h3 class="hot">prevented</h3><p>Code stops it before it runs. The target is known for sure.</p></div>
       <div class="panel"><h3>detected</h3><p>Code finds it after it ran, from the git diff, and stops the task.</p></div>
-      <div class="panel"><h3>advisory</h3><p>Written in a skill or role card. The model can ignore it.</p></div>
+      <div class="panel"><h3>advisory</h3><p>Written in the session summary, a brief or a role card. The model can ignore it.</p></div>
     </div>
     <div class="tbl">
       <table>
@@ -294,7 +294,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
           <tr><td>Check results are real</td><td>Only <code>engos check &lt;name&gt;</code> counts. It runs the exact configured command and records the exit code itself (D36). Nothing stops a test from failing; this stops a failed or hand-typed run from counting as a pass.</td><td><span class="tag code">recorded</span></td></tr>
           <tr><td>No "done" without passing checks</td><td><code>engos task close</code> refuses unless the required evidence is in the ledger and checks passed after the last edit</td><td><span class="tag code">prevented</span></td></tr>
           <tr><td>Role behaviour</td><td><code>SubagentStart</code> injects the role card</td><td><span class="tag model">advisory</span></td></tr>
-          <tr><td>Plan quality</td><td>Plan skill</td><td><span class="tag model">advisory</span></td></tr>
+          <tr><td>Plan quality</td><td>Session summary and <code>engos plan set</code></td><td><span class="tag model">advisory</span></td></tr>
         </tbody>
       </table>
     </div>

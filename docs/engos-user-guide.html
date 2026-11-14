@@ -139,7 +139,7 @@ footer { margin-top: 26px; font-family: var(--f-mono); font-size: 11px; color: v
     <div><dt>You need</dt><dd>Claude Code with fail-closed hooks, Node, a git repo</dd></div>
     <div><dt>Protects against</dt><dd>Mistakes and injected instructions. Not a sandbox.</dd></div>
   </dl>
-  <p class="banner">This guide describes v0.1 as designed. The plugin isn't built yet, so commands and screens may change slightly before release.</p>
+  <p class="banner">This guide describes v0.1 as built and tested (79 automated tests on Windows, macOS and Linux, plus runs in real Claude Code).</p>
   <p style="text-align:center;margin:10px 0 0;font-size:13.5px"><a href="https://claude.ai/artifact/SEzgkoSELny1Aspudh8ZT5" style="color:var(--accent)" lang="ar" dir="rtl">النسخة العربية</a></p>
 
   <nav class="toc" aria-label="Sections">
@@ -184,6 +184,7 @@ claude plugin install engos --marketplace eslamatwa/engineering-os</pre>
           <li><span><b>Which models do you have?</b> Haiku, Sonnet, Opus, Fable. Saved so it never routes to one you don't have.</span></li>
           <li><span><b>How do you run checks?</b> Your test, lint and build commands. Only these count as proof.</span></li>
           <li><span><b>Extra protection?</b> Optional deny rules and the status line for this project. Your choice.</span></li>
+          <li><span><b>What fits this project?</b> At the end it lists the official skills and MCP servers that match your stack, with the commands to install them. Nothing is installed for you.</span></li>
         </ol>
       </div>
       <div class="panel">
