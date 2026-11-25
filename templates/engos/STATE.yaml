@@ -1,25 +1,18 @@
 # .engos/STATE.yaml — committed. Changed only through `engos` commands.
+# Starts empty: nothing here is true about this project until a command records it.
+# Shapes, for reference only (these lines are comments, not facts):
+#   facts:        - { id: F-001, statement: "API uses Express 4", status: verified,
+#                     source: { path: "package.json", line: 14 }, verified_by: code }   # code | validator | human
+#   assumptions:  - { id: A-001, statement: "staging shares the production database",
+#                     status: assumed, needs: human_confirmation }
+#   decisions:    - { id: PD-001, decision: "...", rationale: "...", source: human, date: YYYY-MM-DD }
+#   risks:        - { item: "...", impact: "...", owner: "...", next_action: "..." }
 schema: engos/state@1
 
-facts:                     # verified; each needs a source
-  - id: F-001
-    statement: "Example: API uses Express 4"
-    status: verified
-    source: { path: "package.json", line: 14 }
-    verified_by: code      # code | validator | human
+facts: []                  # verified; each needs a source
 
-assumptions:               # not verified yet
-  - id: A-001
-    statement: "Example: staging shares the production database"
-    status: assumed
-    needs: human_confirmation
+assumptions: []            # not verified yet
 
-decisions:
-  - id: PD-001
-    decision: "Example decision"
-    rationale: ""
-    source: human
-    date: 2026-11-13
+decisions: []
 
-risks:
-  - { item: "", impact: "", owner: "", next_action: "" }
+risks: []

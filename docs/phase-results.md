@@ -401,3 +401,7 @@ Built: `plugin/scripts/engos-usage.js` (tokens and cost from transcripts, increm
 - Bug found and fixed: Chrome marks a page opened from outside it (another app, the extension) as `Sec-Fetch-Site: cross-site`, so the server answered 403 and the live view could not be opened from a link. Opening the page itself (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`) is now allowed; loading its data from another site's page is still refused. Tests added.
 - Notifications: with the browser permission simulated in the page, a new pending push produced exactly one notification ("Waiting for your Allow/Deny in Claude Code: git push origin release/2.0"), none for the item already known, and none again on later refreshes. The real permission prompt is the user's to answer.
 - The extension can't open `file://` pages, so that mode was not re-checked in Chrome.
+
+### Field report: first real install on a remote Linux machine (D55)
+
+The owner ran the plugin on RHEL 9.7 over SSH and reported ten problems. Fixed: doctor fails when hooks are missing or have not run (it said "All checks passed" with every gate off); unknown options refused, `--help` and `--version` safe, CR-safe arguments; init rerun reports what was not applied; empty STATE template; `ENGOS_TEST_THROW` guard; `/engos:view` fallback and SSH tunnel instructions; LF line endings and an executable launcher. Not fixed here: the sync to the remote machine dropping `hooks/` (Claude Code behaviour, P17). Evidence: `tests/unit/field-report.test.js` (8 tests); full suite 108/108.

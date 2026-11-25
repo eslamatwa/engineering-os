@@ -30,8 +30,32 @@ const DENY_RULES = [ // Edit(...) rules cover every file-editing tool; Write(...
   'Edit(./.engos/statusline.js)',
 ];
 
+// Flags each command reads (D55): anything else is an error, never silently ignored. --help is allowed everywhere.
+const OPTIONS = {
+  init: ['models', 'check', 'known', 'deny-rules', 'status-line', 'git-init'],
+  doctor: [],
+  task: ['summary', 'by', 'residual-risk'],
+  profile: ['kind', 'sensitivity', 'reversibility', 'mutates', 'unknowns', 'task'],
+  plan: ['scope-write', 'scope-read', 'acceptance', 'steps', 'kind', 'sensitivity', 'reversibility', 'mutates', 'unknowns', 'task'],
+  scope: ['add', 'reason', 'task'],
+  check: ['task', 'timeout'],
+  criteria: ['set', 'reason', 'task'],
+  step: ['step', 'steps', 'objective', 'task'],
+  dispute: ['about', 'reason', 'security', 'severity', 'side', 'step', 'task'],
+  facts: ['fact', 'source', 'assumption', 'task'],
+  status: [],
+  view: ['open', 'serve', 'port'],
+  recommend: ['json', 'all', 'limit', 'claude'],
+  models: [],
+  agents: ['task'],
+  version: [],
+  help: [],
+};
+
 function parseArgs(argv) {
   const args = { _: [], multi: {} };
+  // A launcher saved with Windows line endings passes "doctor\r"; never let a stray CR change a word.
+  argv = argv.map((s) => String(s).replace(/\r+$/, ''));
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--')) {
@@ -192,6 +216,10 @@ function cmdInit(args) {
   console.log('Engineering OS initialised in ' + root);
   if (created.length) console.log('Created: ' + created.join(', '));
   if (kept.length) console.log('Already there, left unchanged: ' + kept.join(', '));
+  if (kept.includes('.engos/config.yaml')) {
+    const ignored = ['models', 'check', 'known'].filter((k) => args[k] !== undefined).map((k) => '--' + k);
+    if (ignored.length) console.log('NOT APPLIED: ' + ignored.join(', ') + ' (.engos/config.yaml already exists and is never overwritten). Change models, checks or known commands by editing .engos/config.yaml.');
+  }
   for (const r of report) console.log(r);
   console.log('Mode for new sessions: ' + check.mode + (check.hard.length ? ' (' + check.hard.join(' ') + ')' : ''));
   if (Object.keys(checks).length === 0) console.log('No check commands set. Add them under checks: in .engos/config.yaml so tasks can prove they work.');
@@ -203,6 +231,22 @@ function cmdInit(args) {
 function cmdDoctor() {
   const root = requireRoot();
   const check = core.selfCheck(root);
+  // D55: a gate that isn't running must never look like a pass. Two checks: the installed copy ships its
+  // hooks, and (inside Claude Code) a hook has already seen this session. The PreToolUse hook of the very
+  // Bash call that runs `engos doctor` creates .engos/sessions/<id>.json, so it exists whenever hooks run.
+  const hooksFile = path.join(core.PLUGIN_ROOT, 'hooks', 'hooks.json');
+  let hooksOk = false;
+  try {
+    const pre = (JSON.parse(fs.readFileSync(hooksFile, 'utf8')).hooks || {}).PreToolUse || [];
+    hooksOk = pre.some((m) => (m.hooks || []).some((h) => /engos-hook\.js/.test(String(h.command || '') + ' ' + (h.args || []).join(' ')) && /pre-tool-use/.test(String(h.command || '') + ' ' + (h.args || []).join(' '))));
+  } catch (_) { /* missing or unreadable */ }
+  if (!hooksOk) check.hard.push('this copy of the plugin has no working hooks/hooks.json (' + hooksFile + '), so no gate runs. Reinstall with `claude plugin install engos --marketplace eslamatwa/engineering-os`; plugin copies synced to a remote machine may drop hooks.');
+  const sid = process.env.CLAUDE_CODE_SESSION_ID;
+  if (hooksOk && sid) {
+    if (!fs.existsSync(core.sessionFile(root, sid))) check.hard.push('no Engineering OS hook has run in this Claude Code session, so edits and commands are NOT gated. Start a new session after installing; if this persists, the hooks are not loaded on this machine.');
+  } else if (hooksOk) {
+    check.warn.push('not running inside Claude Code, so whether the hooks run could not be checked. Run /engos:status in a session to confirm.');
+  }
   console.log('Project: ' + root);
   console.log('Node: ' + process.versions.node);
   console.log('Claude Code: ' + (check.claude_code_version || 'unknown'));
@@ -754,6 +798,24 @@ function cmdStatus() {
   }
 }
 
+// D55: on a machine reached over SSH, 127.0.0.1 is the server, not the user's computer. The view stays bound
+// to loopback (never 0.0.0.0); the user forwards the port through their own SSH login instead.
+function remoteHint(port, prefix) {
+  const conn = String(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || '').trim().split(/\s+/);
+  if (!conn[0]) return [];
+  const serverIp = process.env.SSH_CONNECTION ? conn[2] : null;
+  let user = '';
+  try { user = require('os').userInfo().username; } catch (_) { /* unknown */ }
+  const target = (user ? user + '@' : '') + (serverIp || '<this-server>');
+  return [
+    '',
+    'This machine was reached over SSH, so the address above opens only here. To see the view on your own computer:',
+    '  1. On your computer, in a new terminal:  ssh -N -L ' + port + ':127.0.0.1:' + port + ' ' + target,
+    '  2. Open in your browser:                 http://127.0.0.1:' + port + prefix,
+    'Keep step 1 running while you watch. Nothing is exposed to the network: the tunnel uses your own SSH login.',
+  ];
+}
+
 // A local read-only server for browsers that show file:// pages as static snapshots (the Desktop
 // app's browser pane). Bound to 127.0.0.1, GET only, serves exactly two files, stops after 8 hours.
 function serveView(root, args) {
@@ -766,12 +828,13 @@ function serveView(root, args) {
   // <script> tag and read the project's state. The Host check stops DNS rebinding; Sec-Fetch-Site stops
   // cross-site loads in browsers that send it.
   const token = crypto.randomBytes(18).toString('base64url');
-  const hosts = new Set(['127.0.0.1:' + port, 'localhost:' + port]);
+  // Loopback names only (stops DNS rebinding). Any port: an SSH tunnel may forward a different local port (D55).
+  const loopbackHost = /^(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?$/;
   const prefix = '/' + token + '/';
   const server = http.createServer((req, res) => {
     const deny = (code) => { res.writeHead(code, { 'Cache-Control': 'no-store' }); res.end(); };
     if (req.method !== 'GET') return deny(405);
-    if (!hosts.has(String(req.headers.host || '').toLowerCase())) return deny(403);
+    if (!loopbackHost.test(String(req.headers.host || '').toLowerCase())) return deny(403);
     // Opening the page itself from a link in another app is fine (the path is secret anyway); loading its
     // data from another site's page (a <script> tag) is what must fail. Chrome marks link opens cross-site.
     const site = String(req.headers['sec-fetch-site'] || 'none');
@@ -810,6 +873,7 @@ function serveView(root, args) {
     S.writeStatus(root, { view: true });
     console.log('Live view: http://127.0.0.1:' + port + prefix);
     console.log('Read-only, local to this machine, and only at this address (it changes each run). It refreshes every 2 seconds. Stop it with Ctrl+C; it stops by itself after 8 hours.');
+    for (const line of remoteHint(port, prefix)) console.log(line);
     if (args.open) {
       try {
         const url = 'http://127.0.0.1:' + port + prefix;
@@ -829,6 +893,7 @@ function cmdView(args) {
   if (args.serve) return serveView(root, args);
   console.log('Live view: ' + url);
   console.log('It refreshes every 2 seconds while Engineering OS works. Read-only: approvals happen only in the session.');
+  if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) console.log('This machine was reached over SSH, so that file is on the server, not your computer. Run `engos view --serve` instead: it prints how to open the view on your own computer through an SSH tunnel.');
   if (args.open) {
     try {
       if (process.platform === 'win32') cp.spawn('cmd', ['/c', 'start', '', file], { detached: true, stdio: 'ignore' }).unref();
@@ -876,7 +941,16 @@ function cmdRecommend(args) {
 function main() {
   process.on('exit', () => { try { const r = core.dirtyRoot(); if (r) require(path.join(__dirname, 'engos-status.js')).writeStatus(r); } catch (_) { /* best effort */ } });
   const args = parseArgs(process.argv.slice(2));
-  const cmd = args._[0];
+  let cmd = args._[0];
+  if (cmd === undefined && args.version) cmd = 'version';
+  if (cmd === undefined && args.help) cmd = 'help';
+  if (cmd !== undefined && OPTIONS[cmd]) {
+    if (args.help && cmd !== 'help') cmd = 'help'; // `engos init --help` shows help; it never runs init
+    else {
+      const bad = Object.keys(args).filter((k) => k !== '_' && k !== 'multi' && k !== 'version' && !OPTIONS[cmd].includes(k));
+      if (bad.length) fail('unknown option' + (bad.length > 1 ? 's' : '') + ' for "' + cmd + '": ' + bad.map((b) => '--' + b).join(', ') + '. Nothing was changed. Run engos help.');
+    }
+  }
   switch (cmd) {
     case 'init': return cmdInit(args);
     case 'doctor': return cmdDoctor();
@@ -908,12 +982,10 @@ function main() {
       core.ledger(root, { type: 'agents.reset', actor: { kind: 'cli' }, task_id: task.task_id, count: n });
       return console.log(task.task_id + ': ' + n + ' agent launch(es) marked abandoned. A new worker can start.');
     }
-    case 'version':
-    case '--version': return console.log('engos ' + VERSION);
+    case 'version': return console.log('engos ' + VERSION);
     case undefined:
     case 'help':
-    case '--help':
-      return console.log('engos ' + VERSION + '\n\nCommands:\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open|--serve]               write the live view page and print its address\n  models reset | agents reset         clear models marked unavailable | free agents left running\n  recommend [--json] [--all]          official plugins (skills, MCP servers) that fit this project, with install commands\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
+      return console.log('engos ' + VERSION + '\n\nCommands (unknown options are refused; --help never runs a command):\n  init [--models haiku,sonnet,opus] [--check name=cmd]... [--known cmd]... [--deny-rules] [--status-line] [--git-init]\n  doctor\n  status                              what is happening now, as text\n  view [--open|--serve [--port N]]    write the live view page and print its address\n  models reset | agents reset         clear models marked unavailable | free agents left running\n  recommend [--json] [--all]          official plugins (skills, MCP servers) that fit this project, with install commands\n  task open --summary "..." | task status [TASK-ID] | task close TASK-ID\n  profile set --kind <kind> [--sensitivity a,b] [--reversibility easy|hard|irreversible] [--task ID]\n  plan set --scope-write "glob,glob" [--acceptance "a; b"] [--scope-read "..."] [--steps "S1:locate,S2:implement,S3:verify"] [--task ID]\n  scope amend --add "glob" --reason "..." [--task ID]\n  check <name> [--task ID]            run a configured check and record its exit code\n  criteria amend --set "a; b" --reason "..."\n  step add --step "S3:verify" | step list | step brief S2 [--objective "..."]\n  dispute open --about AC-2 --reason "..." [--security --severity medium] | dispute settle DSP-1 --side validator|worker --reason "..."\n  facts add --fact "..." --source path:line|human | facts add --assumption "..."\n  task close TASK-ID [--residual-risk "..."]\n  version');
     default:
       return fail('unknown command "' + cmd + '". Run engos help.');
   }

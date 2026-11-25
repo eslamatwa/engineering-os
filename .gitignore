@@ -6,3 +6,4 @@ Thumbs.db
 
 # Test scratch output
 tests/.tmp/
+dist/

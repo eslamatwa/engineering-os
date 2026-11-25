@@ -792,7 +792,7 @@ function main() {
   }
 
   try {
-    if (process.env.ENGOS_TEST_THROW === mode) throw new Error('test-induced failure');
+    if (mode && process.env.ENGOS_TEST_THROW === mode) throw new Error('test-induced failure');
     if (mode === 'session-start') return sessionStart(core, input);
     if (mode === 'pre-tool-use') return preToolUse(core, input);
     if (mode === 'post-tool-use') return postToolUse(core, input);

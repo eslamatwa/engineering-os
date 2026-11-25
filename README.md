@@ -116,13 +116,17 @@ mcp_allowlist: ["mcp__github__get_*"]   # read-only MCP tools that shouldn't ask
 
 Tasks, approvals, the ledger and the live view stay local and are gitignored.
 
+**Working on a remote machine over SSH?** The live view listens only on the server's 127.0.0.1. Run `engos view --serve` there (or `/engos:view`): it prints an `ssh -N -L 4317:127.0.0.1:4317 user@server` command to run on your own computer, and the address to open in your browser. Nothing is exposed to the network.
+
+Run `engos doctor` (or `/engos:init` again) after installing: it fails if the hooks are not running, so protection is never off without you knowing.
+
 ## Documentation
 
 | For | Read |
 | --- | --- |
 | Using it | [User guide](docs/engos-user-guide.html) · [الدليل بالعربية](docs/engos-user-guide-ar.html) |
 | How it is built | [Architecture page](docs/engos-architecture.html) · [`docs/architecture.md`](docs/architecture.md) · [`docs/hooks.md`](docs/hooks.md) · [`docs/execution-contract.md`](docs/execution-contract.md) |
-| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D54) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
+| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D55) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
 | What was verified | [`docs/phase-results.md`](docs/phase-results.md) · [`docs/benchmark.md`](docs/benchmark.md) · [`docs/spike-results.md`](docs/spike-results.md) · [`tests/acceptance-scenarios.md`](tests/acceptance-scenarios.md) |
 | What's next | [`docs/roadmap.md`](docs/roadmap.md) · [`docs/live-view-ideas.md`](docs/live-view-ideas.md) |
 
