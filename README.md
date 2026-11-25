@@ -126,7 +126,7 @@ Run `engos doctor` (or `/engos:init` again) after installing: it fails if the ho
 | --- | --- |
 | Using it | [User guide](docs/engos-user-guide.html) · [الدليل بالعربية](docs/engos-user-guide-ar.html) |
 | How it is built | [Architecture page](docs/engos-architecture.html) · [`docs/architecture.md`](docs/architecture.md) · [`docs/hooks.md`](docs/hooks.md) · [`docs/execution-contract.md`](docs/execution-contract.md) |
-| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D55) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
+| Why it is built this way | [`docs/decisions.md`](docs/decisions.md) (D1–D56) · [`docs/security-and-governance.md`](docs/security-and-governance.md) |
 | What was verified | [`docs/phase-results.md`](docs/phase-results.md) · [`docs/benchmark.md`](docs/benchmark.md) · [`docs/spike-results.md`](docs/spike-results.md) · [`tests/acceptance-scenarios.md`](tests/acceptance-scenarios.md) |
 | What's next | [`docs/roadmap.md`](docs/roadmap.md) · [`docs/live-view-ideas.md`](docs/live-view-ideas.md) |
 

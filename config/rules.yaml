@@ -191,6 +191,15 @@ bash_classes:
     commands: [cd, pushd, popd, export, jq, sed, nl, column, md5sum, sha1sum, sha256sum, ls, dir, cat, type, head, tail, less, more, rg, grep, egrep, fgrep, find, fd, wc, pwd, echo, printf, which, where, tree, stat, file, du, df, date, whoami, env, printenv, sort, uniq, cut, diff, cmp, basename, dirname, realpath, readlink, true, false, test, Get-ChildItem, Get-Content, Get-Location, Select-String]
     prefixes: ["git status", "git log", "git diff", "git show", "git rev-parse", "git ls-files", "git remote -v", "git blame", "git branch --list", "git config --get", "git describe", "git shortlog", "git reflog", "git grep", "git cat-file", "git rev-list", "git ls-tree", "git for-each-ref", "git merge-base", "git name-rev", "git remote", "git version", "git --version", "git help", "gh pr view", "gh pr list", "gh pr diff", "gh pr status", "gh pr checks", "gh issue view", "gh issue list", "gh run view", "gh run list", "gh run watch", "gh repo view", "gh auth status", "gh search", "gh api", "node --version", "node -v", "npm --version", "npm ls", "npm view", "python --version"]
     not_read_if: [output_redirect, "find -delete", "find -exec", "sed -i"]   # these turn a read into unknown
+    # D56: read-only system and container inspection, so checking a server doesn't ask every time.
+    system_commands: [pgrep, ps, ss, id, uname, uptime, nproc, free, lsblk, lscpu, findmnt, getent, groups, journalctl, ip, firewall-cmd]
+    system_prefixes: ["systemctl status", "systemctl is-active", "systemctl is-enabled", "systemctl is-failed", "systemctl list-units", "systemctl list-unit-files", "systemctl list-timers", "systemctl cat", "systemctl show", "systemctl --user status", "systemctl --user is-active", "systemctl --user is-enabled", "systemctl --user list-units", "systemctl --user list-timers", "systemctl --user cat", "systemctl --user show", "systemd-analyze verify", "bash -n", "sh -n", "crontab -l", "podman ps", "podman logs", "podman inspect", "podman images", "podman info", "podman version", "podman volume ls", "podman network ls", "podman pod ps", "docker ps", "docker logs", "docker inspect", "docker images", "docker info", "docker version", "docker compose ps", "docker compose logs", "docker compose version"]
+    exact: [hostname, hostnamectl, timedatectl, "hostname -I", "hostname -f", "hostname -s"]   # only with no other arguments
+    write_patterns:            # regexes: a part matching one of these is never read (D56)
+      - '^journalctl\b.*\s--(?:vacuum|rotate|flush|relinquish|sync|setup-keys|update-catalog)'
+      - '^ip\b.*\s(?:add|del|delete|change|replace|set|flush|append|prepend|exec|save|restore|attach|detach)(?:\s|$)'
+      - '^firewall-cmd\b.*\s--(?:add|remove|change|set|new|delete|reload|complete-reload|runtime-to-permanent|load|lockdown|panic|reset|policy-server)'
+    bare_assignment: read      # "S=/tmp/x" with no command runs nothing (D56)
   unknown: everything else
 
 bash_policy:                 # per class: question/trivial | standard | high_risk
@@ -229,9 +238,10 @@ tiers:
 step_tier_rules:                       # first match wins
   - { step: [search, extract, read_logs, summarize, locate, inventory, triage], tier: fast }
   - { step: implement, class: trivial_edit, executor: lead }
-  - { step: [implement, tests, docs], kind: [bugfix, tests, docs], tier: balanced }
-  - { step: implement, kind: [feature, refactor, debugging], tier: frontier }
   - { step: implement, class: high_risk, tier: frontier }
+  - { step: [implement, tests, docs], kind: [bugfix, tests, docs], tier: balanced }
+  - { step: implement, kind: feature, tier: balanced }            # D56: features below high_risk on Sonnet
+  - { step: implement, kind: [refactor, debugging], tier: frontier }
   - { step: review_security, tier: frontier }
   - { step: [design, plan_migration], tier: deep }
   - { default: frontier }

@@ -100,6 +100,18 @@ function planSteps(task, specs, D) {
   });
 }
 
+// D56: after the class changes, planned steps show and use the tier for the new class.
+// Launches already made keep the model they ran on.
+function rerouteSteps(task, D) {
+  for (const step of (task.planned && task.planned.steps) || []) {
+    if (step.by === 'lead') continue;
+    const r = routeStep(task, step, D);
+    if (r.by !== step.by) continue;
+    step.tier = r.tier;
+    step.rule_id = r.rule;
+  }
+}
+
 function rolesFor(task, D) {
   const rr = D.agents.role_rules || {};
   const kind = (task.declared || {}).kind;
@@ -501,7 +513,7 @@ function disputeSettler(task, opts, D) {
 
 module.exports = {
   TIERS, ENGOS_TYPES, SEVERITY_RANK, modelAlias, upTier, readOnlyTask, roleOfType,
-  assurance, stepKind, routeStep, planSteps, rolesFor,
+  assurance, stepKind, routeStep, planSteps, rerouteSteps, rolesFor,
   loadUnavailable, markUnavailable, resetUnavailable, MODEL_UNAVAILABLE_RE, resetLaunches, modelFor,
   agentsOf, stepState, launchesFor, failuresFor, isRunning, runningWorkers, expectedFor, stepIdFrom,
   agentDecision, recordLaunch, findByAgentId, bindStart,

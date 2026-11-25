@@ -51,8 +51,8 @@ Levels: **prevented** means code stops it before it runs; **detected** means cod
 | Tier | Model | Used for |
 | --- | --- | --- |
 | fast | Haiku | Search, extraction, log reading. Never edits code. |
-| balanced | Sonnet | Scoped fixes, tests, docs, routine validation |
-| frontier | Opus | Features, debugging, security review |
+| balanced | Sonnet | Features below high_risk, scoped fixes, tests, docs, routine validation |
+| frontier | Opus | High-risk implementation, refactors, debugging, security review (features below high_risk use balanced, D56) |
 | deep | Fable | Architecture, migrations. Always asks the user first (D32). |
 
 Model availability is asked once per project (`models.available`). An unavailable model falls back one tier with a note; a call that fails because the account lacks a model marks it unavailable. Escalation never reaches Fable by itself.

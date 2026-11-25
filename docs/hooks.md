@@ -69,7 +69,7 @@ In order, first denial wins:
 1. Split the command on `&&`, `;`, `|`, `$( )` and backticks. Classify each part with `bash_classes` in `config/rules.yaml`.
 2. `self_protect` anywhere, including running `claude`: deny (G-self, D34).
 3. `vcs_remote`, `network` or `destructive`, or `unknown` in a high_risk task: write a request in `.engos/approvals/` with context (branch, outgoing commits) and return `ask`, so Claude Code's own Allow/Deny prompt shows the exact command. This works in every interactive mode, including auto and bypass (spike round 3). PostToolUse marks the request approved when the command ran; a "No" fires nothing and the request expires after an hour. Headless sessions turn `ask` into a denial (P3). (D46)
-4. Apply `bash_policy` for the task's class. In `high_risk`, an `unknown` command needs an action approval unless it is in the project's `known_commands` (D38).
+4. Apply `bash_policy` for the task's class. In `high_risk`, an `unknown` command needs an action approval unless it is in the project's `known_commands` (D38). The exact same `unknown` command already allowed in this task and session runs without asking again for 24 hours (`approval.reused`, D56); network, push and destructive commands ask every time.
 5. For non-read commands, save a git snapshot reference for H7.
 
 ## H5 · PreToolUse on Agent / Task

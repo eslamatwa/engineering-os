@@ -62,6 +62,7 @@ function describe(e) {
     case 'gate.denied': return { text: 'blocked ' + (e.tool || '') + ' · ' + e.rule_id, who: 'gate', tone: 'bad' };
     case 'approval.requested': return { text: 'asked you to allow ' + (e.kind === 'file' ? 'editing ' + (e.path || 'a protected file') : (e.command_class || 'an action').replace('_', ' ') + ' command'), who: 'gate · ' + e.approval_id, tone: 'warn' };
     case 'approval.granted': return { text: 'you allowed ' + e.approval_id, who: 'you', tone: 'ok' };
+    case 'approval.reused': return { text: 'ran a command you already allowed in this task (' + e.approval_id + ')', who: 'gate', tone: 'ok' };
     case 'model.asked': return { text: (e.step || '') + ' asks to use Fable', who: 'lead', tone: 'warn' };
     case 'model.answered': return { text: 'Fable ' + (e.answer === 'yes' ? 'approved' : 'declined'), who: 'you', tone: 'ok' };
     case 'model.unavailable': return { text: e.model + ' marked unavailable', who: 'hook', tone: 'warn' };

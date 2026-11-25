@@ -128,6 +128,16 @@ function grantIfPending(root, o) {
   return rec;
 }
 
+// D56: the same exact command, already allowed once in this task and session (max 24 hours).
+// Only for commands of class `unknown`; network, push and destructive commands ask every time (D46).
+function allowedBefore(root, o) {
+  if (!o.task_id) return null;
+  const hash = 'sha256:' + actionHash([o.kind, o.tool, o.action, o.session_id, o.task_id]);
+  const now = Date.now();
+  return list(root).find((r) => r.action_hash === hash && r.decision === 'approved' && r.command_class === 'unknown'
+    && now - Date.parse(r.decided_at) < FILE_APPROVAL_MAX_MS) || null;
+}
+
 // Add facts known only after the action ran (e.g. the commit a push actually sent).
 function annotate(root, id, fields) {
   const rec = load(root, id);
@@ -169,4 +179,4 @@ function pending(root, sessionId) {
   return list(root).filter((r) => r.decision === 'requested' && (!sessionId || r.session_id === sessionId) && now - Date.parse(r.requested_at) <= REQUEST_TTL_MS);
 }
 
-module.exports = { annotate, afterContext, isOwnRecord, request, grantIfPending, findPending, fileApproved, expireStale, pending, list, load, contextFor, actionHash, idFor, REQUEST_TTL_MS, FILE_APPROVAL_MAX_MS };
+module.exports = { allowedBefore, annotate, afterContext, isOwnRecord, request, grantIfPending, findPending, fileApproved, expireStale, pending, list, load, contextFor, actionHash, idFor, REQUEST_TTL_MS, FILE_APPROVAL_MAX_MS };

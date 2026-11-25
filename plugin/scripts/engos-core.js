@@ -321,6 +321,7 @@ function ratchet(root, profile, trigger, protectedPaths) {
   if (r.raised) {
     profile.effective.class = r.cls;
     profile.history.push({ at: new Date().toISOString(), from: r.from, to: r.cls, trigger });
+    require('./engos-orchestrate.js').rerouteSteps(profile, defaults()); // D56
     ledger(root, { type: 'class.changed', actor: { kind: 'hook' }, task_id: profile.task_id, from: r.from, to: r.cls, rule_id: r.sources.join(','), trigger });
   }
   const missing = R.missingRequirements(profile);

@@ -544,7 +544,79 @@
         "find -delete",
         "find -exec",
         "sed -i"
-      ]
+      ],
+      "system_commands": [
+        "pgrep",
+        "ps",
+        "ss",
+        "id",
+        "uname",
+        "uptime",
+        "nproc",
+        "free",
+        "lsblk",
+        "lscpu",
+        "findmnt",
+        "getent",
+        "groups",
+        "journalctl",
+        "ip",
+        "firewall-cmd"
+      ],
+      "system_prefixes": [
+        "systemctl status",
+        "systemctl is-active",
+        "systemctl is-enabled",
+        "systemctl is-failed",
+        "systemctl list-units",
+        "systemctl list-unit-files",
+        "systemctl list-timers",
+        "systemctl cat",
+        "systemctl show",
+        "systemctl --user status",
+        "systemctl --user is-active",
+        "systemctl --user is-enabled",
+        "systemctl --user list-units",
+        "systemctl --user list-timers",
+        "systemctl --user cat",
+        "systemctl --user show",
+        "systemd-analyze verify",
+        "bash -n",
+        "sh -n",
+        "crontab -l",
+        "podman ps",
+        "podman logs",
+        "podman inspect",
+        "podman images",
+        "podman info",
+        "podman version",
+        "podman volume ls",
+        "podman network ls",
+        "podman pod ps",
+        "docker ps",
+        "docker logs",
+        "docker inspect",
+        "docker images",
+        "docker info",
+        "docker version",
+        "docker compose ps",
+        "docker compose logs",
+        "docker compose version"
+      ],
+      "exact": [
+        "hostname",
+        "hostnamectl",
+        "timedatectl",
+        "hostname -I",
+        "hostname -f",
+        "hostname -s"
+      ],
+      "write_patterns": [
+        "^journalctl\\b.*\\s--(?:vacuum|rotate|flush|relinquish|sync|setup-keys|update-catalog)",
+        "^ip\\b.*\\s(?:add|del|delete|change|replace|set|flush|append|prepend|exec|save|restore|attach|detach)(?:\\s|$)",
+        "^firewall-cmd\\b.*\\s--(?:add|remove|change|set|new|delete|reload|complete-reload|runtime-to-permanent|load|lockdown|panic|reset|policy-server)"
+      ],
+      "bare_assignment": "read"
     },
     "unknown": "everything else"
   },
@@ -652,6 +724,11 @@
       "executor": "lead"
     },
     {
+      "step": "implement",
+      "class": "high_risk",
+      "tier": "frontier"
+    },
+    {
       "step": [
         "implement",
         "tests",
@@ -666,16 +743,15 @@
     },
     {
       "step": "implement",
-      "kind": [
-        "feature",
-        "refactor",
-        "debugging"
-      ],
-      "tier": "frontier"
+      "kind": "feature",
+      "tier": "balanced"
     },
     {
       "step": "implement",
-      "class": "high_risk",
+      "kind": [
+        "refactor",
+        "debugging"
+      ],
       "tier": "frontier"
     },
     {

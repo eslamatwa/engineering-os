@@ -150,6 +150,7 @@ function normalizePart(part) {
     t = t.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+/, '');
     t = t.replace(/^(?:sudo|env|command|time|nohup|exec|nice|stdbuf|ionice|npx|bunx)\s+(?:-\S+\s+)*/, '');
     t = t.replace(/^(?:pnpm|yarn)\s+dlx\s+(?:-\S+\s+)*/, '');
+    t = t.replace(/^runuser\s+(?:-[lmp]\s+)*-u\s+\S+\s+(?:-[lmp]\s+)*--\s+/, ''); // D56: like sudo, the command after -- is what runs
     t = t.replace(/^timeout\s+(?:-\S+\s+)*\S+\s+/, '');
     t = t.replace(/^xargs(?:\s+(?:-[nILPdsE]\s*\S+|-\S+))*\s+/, '');
     if (t === before) break;
@@ -235,9 +236,16 @@ function classifyPart(part, bashClasses, neverPatterns) {
   if (/^gh\s+api\b/i.test(text) && /\s(?:-X|--method)\s*(?!GET\b)[A-Za-z]+|\s-[fF]\s|\s--(?:field|raw-field|input)\b/i.test(text)) return 'vcs_remote';
   if (startsWithPrefix(text, bc.pkg_install && bc.pkg_install.prefixes)) return 'pkg_install';
 
+  // D56: "S=/tmp/x" on its own only sets a shell variable. Any $( ) inside was split out as its own part.
+  const rd = bc.read || {};
+  if (rd.bare_assignment === 'read' && /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"`$]*"|'[^']*'|[^\s"'`]*)\s*)+$/.test(String(part).trim())) return 'read';
+
   // read candidates may still write
-  const readish = inList(bc.read && bc.read.commands) || startsWithPrefix(text, bc.read && bc.read.prefixes);
+  const exactRead = (rd.exact || []).some((q) => text.replace(/\s+/g, ' ').toLowerCase() === String(q).toLowerCase());
+  const readish = exactRead || inList(rd.commands) || inList(rd.system_commands)
+    || startsWithPrefix(text, rd.prefixes) || startsWithPrefix(text, rd.system_prefixes);
   const writes = hasOutputRedirect(text)
+    || (rd.write_patterns || []).some((p) => new RegExp(p, 'i').test(text))
     || /^sed\b.*\s(?:-[a-zA-Z]*i\S*|--in-place\S*)/.test(text)
     || /^find\b.*\s-(delete|exec|execdir|ok|okdir|fprint\w*|fls)\b/.test(text)
     || /^sort\b.*\s(?:-o|--output)\b/.test(text)

@@ -291,6 +291,18 @@ function gateBash(core, root, session, input, cfg) {
     deny(core, root, sessionId, task, 'G-requirements', 'Bash', task.status === 'needs_human' ? 'Task ' + task.task_id + ' is waiting for the user\'s decision (/engos:decide ' + task.task_id + ' accept|stop). Only read commands can run.' : needsText(task, R.missingRequirements(task)));
   }
 
+  if (worst === 'approval' && task) {
+    // D56: an unknown command the user already allowed in this task doesn't ask again.
+    const askParts = res.parts.filter((p) => R.bashDecision(p.cls, taskCls, D.bash_policy) === 'approval' && !(p.cls === 'unknown' && R.isKnownCommand(p.part, cfg.known)));
+    if (askParts.length && askParts.every((p) => p.cls === 'unknown')) {
+      const A = require('./engos-approvals.js');
+      const prior = A.allowedBefore(root, { kind: 'action', tool: 'Bash', action: cmd, session_id: sessionId, task_id: task.task_id });
+      if (prior) {
+        core.ledger(root, { type: 'approval.reused', actor: { kind: 'hook' }, approval_id: prior.approval_id, command_class: 'unknown', task_id: task.task_id, session_id: sessionId });
+        worst = 'allow_observe';
+      }
+    }
+  }
   if (worst === 'approval') {
     if (!session.paused && !task) task = core.openTask(root, sessionId, { cls: 'trivial_edit', openedBy: 'auto', trigger: 'first_command', summary: 'Command: ' + R.redact(cmd).slice(0, 80) });
     const A = require('./engos-approvals.js');
@@ -321,6 +333,39 @@ function gateBash(core, root, session, input, cfg) {
 // ---------------------------------------------------------------------------
 // H7 / H9 · PostToolUse: record approvals that were granted, observe what changed.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// D56: Claude Code writes .claude/settings.local.json itself when the user answers a permission prompt
+// with "don't ask again". Keep a copy before each command; afterwards, a change that only appends
+// Bash(...) allow rules, by a command that doesn't name the file, is the harness and not a violation.
+// ---------------------------------------------------------------------------
+const LOCAL_SETTINGS = '.claude/settings.local.json';
+function localSettingsCopy(root) { return path.join(root, '.engos', 'sessions', 'settings-local.before.json'); }
+function readText(p) { try { return fs.readFileSync(p, 'utf8'); } catch (_) { return null; } }
+function rememberLocalSettings(root) {
+  const now = readText(path.join(root, LOCAL_SETTINGS));
+  const copy = localSettingsCopy(root);
+  if (now === null) { try { fs.unlinkSync(copy); } catch (_) { /* none */ } return; }
+  if (readText(copy) === now) return;
+  try { fs.mkdirSync(path.dirname(copy), { recursive: true }); fs.writeFileSync(copy, now, 'utf8'); } catch (_) { /* best effort */ }
+}
+// Returns the added rules when the change is only new Bash(...) allow rules, else null.
+function harnessAllowRules(root, command) {
+  if (String(command || '').includes('settings.local')) return null;
+  let before, after;
+  const b = readText(localSettingsCopy(root));
+  try { before = b === null ? {} : JSON.parse(b); after = JSON.parse(readText(path.join(root, LOCAL_SETTINGS))); } catch (_) { return null; }
+  if (!after || typeof after !== 'object') return null;
+  const strip = (o) => { const c = JSON.parse(JSON.stringify(o || {})); if (c.permissions) { delete c.permissions.allow; if (!Object.keys(c.permissions).length) delete c.permissions; } return JSON.stringify(c, Object.keys(flatKeys(c)).sort()); };
+  if (strip(before) !== strip(after)) return null;
+  const was = ((before.permissions || {}).allow) || [];
+  const now = ((after.permissions || {}).allow) || [];
+  if (!Array.isArray(now) || now.length <= was.length) return null;
+  if (was.some((r, i) => now[i] !== r)) return null;
+  const added = now.slice(was.length);
+  return added.every((r) => /^Bash\(.+\)$/.test(String(r))) ? added : null;
+}
+function flatKeys(o, acc) { acc = acc || {}; if (o && typeof o === 'object') for (const k of Object.keys(o)) { acc[k] = 1; flatKeys(o[k], acc); } return acc; }
+
 function postToolUse(core, input, failed) {
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
@@ -420,6 +465,23 @@ function postToolUse(core, input, failed) {
     if (covered.length) core.ledger(root, { type: 'protected.changed_under_approval', actor: { kind: 'hook' }, approval_id: grantedThisCall.approval_id, task_id: task.task_id, paths: covered.map((v) => v.path) });
     violations = violations.filter((v) => v.level === 'never');
   }
+  if (isShell && violations.some((v) => v.path === LOCAL_SETTINGS)) {
+    const added = harnessAllowRules(root, ti.command);
+    if (added) {
+      violations = violations.filter((v) => v.path !== LOCAL_SETTINGS);
+      // Accept this version as the new starting point, so the next change to the file is checked again
+      // and this one doesn't raise the class (F-protected).
+      task.observed.protected_hits = (task.observed.protected_hits || []).filter((h) => !(h.path === LOCAL_SETTINGS && h.via === 'snapshot'));
+      try {
+        const st = fs.statSync(path.join(root, LOCAL_SETTINGS));
+        base.protected_snapshot = Object.assign({}, base.protected_snapshot, { [LOCAL_SETTINGS]: { level: 'never', size: st.size, mtime: Math.round(st.mtimeMs) } });
+        fs.writeFileSync(path.join(core.tasksDir(root), task.task_id, 'baseline.json'), JSON.stringify(base, null, 2));
+      } catch (_) { /* best effort */ }
+      core.ledger(root, { type: 'harness.settings_changed', actor: { kind: 'hook' }, task_id: task.task_id, path: LOCAL_SETTINGS, added_allow_rules: added.map((r) => R.redact(String(r)).slice(0, 200)) });
+      messages.push('Note: Claude Code saved ' + added.length + ' "don\'t ask again" rule(s) in ' + LOCAL_SETTINGS + '. Engineering OS still asks for push, network and destructive commands; an unknown command allowed once is not asked again in this task (D56).');
+    }
+  }
+  if (isShell) rememberLocalSettings(root);
   if (violations.length && task.status !== 'needs_human') {
     task.status = 'needs_human';
     task.needs_human_reason = 'a command changed protected files without approval: ' + violations.map((v) => v.path).join(', ');
@@ -542,6 +604,8 @@ function subagentStart(core, input) {
 // ---------------------------------------------------------------------------
 // H11 · SubagentStop: check the report, compare with what was observed, record the verdict
 // ---------------------------------------------------------------------------
+function R_redactTail(msg) { return require('./engos-rules.js').redact(msg.slice(-160)).replace(/\s+/g, ' '); }
+
 function subagentStop(core, input) {
   const root = core.findProjectRoot(projectStart(input));
   if (!root) return;
@@ -563,7 +627,12 @@ function subagentStop(core, input) {
   if (chk.problems.length && !input.stop_hook_active && !(a.report_retries >= 1)) {
     a.report_retries = (a.report_retries || 0) + 1;
     core.saveProfile(root, task);
-    core.ledger(root, { type: 'step.report_rejected', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, problems: chk.problems });
+    // D56 / P18 (pending): field data showed workers "stopping" 18-40 s after launch. Record what the hook saw.
+    const msg = String(input.last_assistant_message || '');
+    const since = Date.parse(a.started_at || a.launched_at);
+    core.ledger(root, { type: 'step.report_rejected', actor: { kind: 'hook' }, task_id: task.task_id, launch: a.id, problems: chk.problems,
+      seen: { message_chars: msg.length, message_tail: R_redactTail(msg), seconds_since_start: isNaN(since) ? null : Math.round((Date.now() - since) / 1000),
+        stop_hook_active: !!input.stop_hook_active, background_tasks: Array.isArray(input.background_tasks) ? input.background_tasks.length : (input.background_tasks == null ? null : String(input.background_tasks).slice(0, 40)) } });
     process.stdout.write(JSON.stringify({ decision: 'block', reason: 'Engineering OS: your report needs fixing before you stop: ' + chk.problems.join('; ') + '. End with the corrected engos/report@1 YAML block.' }));
     return;
   }
@@ -752,6 +821,7 @@ function promptExpansion(core, input) {
     task.human_override = { class: to, at: new Date().toISOString(), by: 'human', ignore_floors: task.effective.floor_sources || [] };
     task.effective.class = to;
     task.history.push({ at: task.human_override.at, from, to, trigger: 'human_override' });
+    require('./engos-orchestrate.js').rerouteSteps(task, core.defaults()); // D56
     const missing = R.missingRequirements(task);
     if (!missing.length && task.status === 'upgrade_pending') task.status = 'open';
     core.saveProfile(root, task);
@@ -767,7 +837,7 @@ function preToolUse(core, input) {
   const session = ensureSession(core, root, sessionIdOf(input), input.transcript_path);
   const cfg = projectRules(core, root, session);
   if (WRITE_TOOLS.has(input.tool_name)) return gateWrite(core, root, session, input, cfg);
-  if (SHELL_TOOLS.has(input.tool_name)) return gateBash(core, root, session, input, cfg);
+  if (SHELL_TOOLS.has(input.tool_name)) { rememberLocalSettings(root); return gateBash(core, root, session, input, cfg); }
   if (input.tool_name === 'Agent' || input.tool_name === 'Task') return gateAgent(core, root, session, input, cfg);
   if (String(input.tool_name || '').startsWith('mcp__')) return gateMcp(core, root, session, input, cfg);
 }
